@@ -7,7 +7,7 @@ import { spriteVars } from "@/src/ui/art/sprites";
 import { AppChrome } from "@/src/ui/components/AppChrome";
 import { SiteFooter } from "@/src/ui/components/SiteFooter";
 
-export const metadata = { title: "Agent Quest", description: "Agent Quest: niveles para practicar los conceptos del día 1" };
+export const metadata = { title: "Agents Quest", description: "Agents Quest: niveles para practicar los conceptos del día 1" };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (

@@ -89,7 +89,7 @@ export function HomeScreen() {
 
   return (
     <>
-      <h1 className="glow"><i className="sp robot logo" />AGENT QUEST</h1>
+      <h1 className="glow"><i className="sp robot logo" />AGENTS QUEST</h1>
       <p className="muted">Un nivel por concepto. Jugad por equipos y sumad puntos en el ranking de vuestra sesión.</p>
 
       {session
