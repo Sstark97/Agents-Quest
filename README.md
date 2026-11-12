@@ -1,8 +1,8 @@
-# 🤖 Agent Quest
+# 🤖 Agents Quest
 
 A pixel-art campaign for learning how to work with AI coding agents: a robot agent in a repo dungeon, one level per concept. Teams play inside a session run by the facilitator and compete in a live ranking.
 
-Agent Quest is part of a workshop on agent-driven development from [LeanMind](https://leanmind.es/es) and [Sirviendo Código](https://sirviendocodigo.com/). The robots are an 8-bit take on the Sirviendo Código mascot.
+Agents Quest is part of a workshop on agent-driven development from [LeanMind](https://leanmind.es/es) and [Sirviendo Código](https://sirviendocodigo.com/). The robots are an 8-bit take on the Sirviendo Código mascot.
 
 Built with Next.js 16 (App Router), React 19 and TypeScript. The interface is in Spanish.
 
