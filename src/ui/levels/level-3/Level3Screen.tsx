@@ -3,7 +3,7 @@ import type * as React from "react";
 import { useState } from "react";
 import {
   CAPACITY, CLEAR_COST, GOOD_ROUND_SCORE, ITEMS, MAX_SCORE, NOISE_COST, ROUNDS,
-  evaluateDesk, evaluationMistakes, isOnDesk, loadItem, removeItem, runMedals, totalScore, usedSlots, type Desk, type Evaluation,
+  evaluateDesk, evaluationMistakes, isOnDesk, loadItem, removeItem, runMedals, totalScore, usedSlots, type Desk, type Evaluation, type Round,
 } from "@/src/domain/levels/level-3/context-desk";
 import { shuffle } from "@/src/domain/shared/random";
 import { seedOrder, teamSeed } from "@/src/domain/shared/seed";
@@ -45,8 +45,9 @@ export function Level3Screen() {
   const avatar = useAvatar();
 
   const say = (text: string, tone = "info") => setLog((l) => [...l.slice(-3), { text, tone }]);
-  const deal = (r: number) => { if (r < rounds.length) setPool(shuffle(rounds[r].pool)); setEv(null); setRound(r); };
-  const start = () => { setRounds(seedOrder(ROUNDS, teamSeed(team, membership.current()?.code))); setTags([]); setBag([]); setScores([]); setClears(0); setEvictions(0); setLog([{ text: "Tu mesa de trabajo tiene 8 huecos. Elige bien.", tone: "info" }]); deal(0); setStarted(true); };
+  // `list` is passed explicitly on start: the new round order is not in state yet at that point.
+  const deal = (r: number, list: Round[] = rounds) => { if (r < list.length) setPool(shuffle(list[r].pool)); setEv(null); setRound(r); };
+  const start = () => { const list = seedOrder(ROUNDS, teamSeed(team, membership.current()?.code)); setRounds(list); setTags([]); setBag([]); setScores([]); setClears(0); setEvictions(0); setLog([{ text: "Tu mesa de trabajo tiene 8 huecos. Elige bien.", tone: "info" }]); deal(0, list); setStarted(true); };
 
   const total = totalScore(scores, clears);
 
