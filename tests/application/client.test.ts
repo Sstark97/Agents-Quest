@@ -286,3 +286,65 @@ describe("facilitator", () => {
     assert.deepEqual(calls, [["S1", "k", "attempts", { attempts: 4 }]]);
   });
 });
+
+describe("play status reader", () => {
+  const status = { limit: 2, games: { "nivel-1": { used: 1, left: 1, best: 200, arrivalTaken: 0, perfectBy: null, mine: null } } };
+  const NONE = { state: "none" };
+
+  it("shows nothing and asks nothing without a session or a team", async () => {
+    let calls = 0;
+    const getPlayStatus = async () => { calls++; return reply(200, { status }); };
+    assert.deepEqual(await setup({ getPlayStatus }).services.playStatus.read("Bits"), NONE);
+    assert.deepEqual(await setup({ getPlayStatus }, joined).services.playStatus.read("  "), NONE);
+    assert.deepEqual(setup({ getPlayStatus }).services.playStatus.peek("Bits"), NONE);
+    assert.equal(calls, 0);
+  });
+
+  it("reads the live status of the team and remembers it", async () => {
+    const asked: unknown[][] = [];
+    const { services } = setup({ getPlayStatus: async (...args) => { asked.push(args); return reply(200, { status }); } }, joined);
+    assert.deepEqual(services.playStatus.peek("Bits"), NONE);
+    assert.deepEqual(await services.playStatus.read(" Bits "), { state: "live", status });
+    assert.deepEqual(asked, [["K7M2Q", "Bits"]]);
+    assert.deepEqual(services.playStatus.peek("Bits"), { state: "offline", status });
+  });
+
+  it("shows nothing for a session without attempt limit and forgets what it knew", async () => {
+    let answer = reply<{ status: typeof status | null }>(200, { status });
+    const { services } = setup({ getPlayStatus: async () => answer }, joined);
+    await services.playStatus.read("Bits");
+    answer = reply(200, { status: null });
+    assert.deepEqual(await services.playStatus.read("Bits"), NONE);
+    assert.deepEqual(services.playStatus.peek("Bits"), NONE);
+  });
+
+  it("falls back to the last known status when offline, or to nothing", async () => {
+    let online = true;
+    const { services } = setup({ getPlayStatus: async () => { if (!online) throw new Error("offline"); return reply(200, { status }); } }, joined);
+    assert.deepEqual(await services.playStatus.read("Other"), { state: "live", status });
+    online = false;
+    assert.deepEqual(await services.playStatus.read("Other"), { state: "offline", status });
+    assert.deepEqual(await services.playStatus.read("Fresh"), NONE);
+  });
+
+  it("treats 404 and 400 as nothing and drops the cache", async () => {
+    for (const code of [404, 400]) {
+      let answer = reply(200, { status });
+      const { services } = setup({ getPlayStatus: async () => answer }, joined);
+      await services.playStatus.read("Bits");
+      answer = reply(code, null as never);
+      assert.deepEqual(await services.playStatus.read("Bits"), NONE);
+      assert.deepEqual(services.playStatus.peek("Bits"), NONE);
+    }
+  });
+
+  it("treats a server error or an unreadable answer as offline", async () => {
+    let answer = reply(200, { status });
+    const { services } = setup({ getPlayStatus: async () => answer }, joined);
+    await services.playStatus.read("Bits");
+    answer = reply(503, null as never);
+    assert.deepEqual(await services.playStatus.read("Bits"), { state: "offline", status });
+    answer = reply(200, null as never);
+    assert.deepEqual(await services.playStatus.read("Bits"), { state: "offline", status });
+  });
+});

@@ -1,3 +1,4 @@
+import type { PlayStatus } from "../../domain/session/play-status";
 import type { TeamRow } from "../../domain/session/ranking";
 import type { ScoreSubmission } from "../../domain/session/score-submission";
 import type { SessionInfo } from "../../domain/session/session";
@@ -24,6 +25,8 @@ export type ScorePayload = ScoreSubmission & { session: string };
 export type AttemptPayload = { session: string; team: string; game: string };
 /** `attempt` and `limit` are null when the session has no attempt limit. */
 export type AttemptReply = { attempt: number | null; limit: number | null };
+/** `status` is null when the session has no attempt limit. */
+export type PlayStatusReply = { status: PlayStatus | null };
 /** Optional parameters of a facilitator action: the level to unlock, or the new attempt limit. */
 export type FacilitatorActionInput = { level?: number; attempts?: number };
 
@@ -33,6 +36,7 @@ export interface SessionGateway {
   createSession(name: string, attempts?: number): Promise<Reply<CreatedSession>>;
   runFacilitatorAction(code: string, key: string, action: FacilitatorAction, input?: FacilitatorActionInput): Promise<Reply<unknown>>;
   startAttempt(payload: AttemptPayload): Promise<Reply<AttemptReply>>;
+  getPlayStatus(code: string, team: string): Promise<Reply<PlayStatusReply>>;
   submitScore(payload: ScorePayload): Promise<Reply<unknown>>;
   getRanking(code: string): Promise<Reply<RankingReply>>;
   getStats(code: string): Promise<Reply<Stats>>;

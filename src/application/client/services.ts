@@ -2,6 +2,7 @@ import { createFacilitator } from "./facilitator";
 import { createLeaderboard } from "./leaderboard";
 import { createLevelAccess } from "./level-access";
 import { createLocalProgress } from "./local-progress";
+import { createPlayStatusReader } from "./play-status";
 import { createPlayerProfile } from "./player-profile";
 import type { KeyValueStore, SessionGateway } from "./ports";
 import { createScoreSubmitter } from "./score-submitter";
@@ -18,6 +19,7 @@ export function createClientServices(store: KeyValueStore, gateway: SessionGatew
     scores: createScoreSubmitter(store, gateway, membership, profile),
     levelAccess: createLevelAccess(store, gateway),
     facilitator: createFacilitator(store, gateway),
+    playStatus: createPlayStatusReader(gateway, membership),
     leaderboard: createLeaderboard(gateway),
   };
 }

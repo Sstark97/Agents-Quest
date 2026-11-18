@@ -17,6 +17,7 @@ export const httpSessionGateway: SessionGateway = {
   createSession: (name, attempts) => post("/api/sessions", { name, attempts }),
   runFacilitatorAction: (code, key, action, input) => post(sessionPath(code), { key, action, level: input?.level, attempts: input?.attempts }),
   startAttempt: (payload) => post("/api/attempts", payload),
+  getPlayStatus: (code, team) => get(`/api/attempts?${query(code)}&team=${encodeURIComponent(team)}`),
   submitScore: (payload) => post("/api/scores", payload),
   getRanking: (code) => get(`/api/scores?${query(code)}`),
   getStats: (code) => get(`/api/stats?${query(code)}`),
