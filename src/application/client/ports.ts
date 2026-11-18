@@ -20,12 +20,19 @@ export type Reply<T> = { ok: boolean; status: number; body: T | null };
 export type RankingReply = { session: SessionInfo; teams: TeamRow[]; persistent: boolean };
 export type CreatedSession = { code: string; name: string; adminKey: string };
 export type ScorePayload = ScoreSubmission & { session: string };
+/** A team opening a level. */
+export type AttemptPayload = { session: string; team: string; game: string };
+/** `attempt` and `limit` are null when the session has no attempt limit. */
+export type AttemptReply = { attempt: number | null; limit: number | null };
+/** Optional parameters of a facilitator action: the level to unlock, or the new attempt limit. */
+export type FacilitatorActionInput = { level?: number; attempts?: number };
 
 /** The session server as seen from the player's device. Every call rejects when there is no connection. */
 export interface SessionGateway {
   findSession(code: string): Promise<Reply<SessionInfo>>;
-  createSession(name: string): Promise<Reply<CreatedSession>>;
-  runFacilitatorAction(code: string, key: string, action: FacilitatorAction, level?: number): Promise<Reply<unknown>>;
+  createSession(name: string, attempts?: number): Promise<Reply<CreatedSession>>;
+  runFacilitatorAction(code: string, key: string, action: FacilitatorAction, input?: FacilitatorActionInput): Promise<Reply<unknown>>;
+  startAttempt(payload: AttemptPayload): Promise<Reply<AttemptReply>>;
   submitScore(payload: ScorePayload): Promise<Reply<unknown>>;
   getRanking(code: string): Promise<Reply<RankingReply>>;
   getStats(code: string): Promise<Reply<Stats>>;

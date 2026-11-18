@@ -4,7 +4,7 @@ import { createClientServices } from "../../src/application/client/services";
 import type { SessionGateway } from "../../src/application/client/ports";
 import { fakeGateway, fakeStore, reply } from "../support/fakes";
 
-const openSession = { code: "K7M2Q", name: "Taller", closed: false, unlocked: 2 };
+const openSession = { code: "K7M2Q", name: "Taller", closed: false, unlocked: 2, attemptLimit: null };
 const joined = { "taller.session": JSON.stringify({ code: "K7M2Q", name: "Taller" }), "taller.team": "Bits", "taller.avatar": "3" };
 const setup = (gateway: Partial<SessionGateway> = {}, stored: Record<string, string> = {}) => {
   const store = fakeStore(stored);
@@ -97,6 +97,134 @@ describe("score submitter", () => {
   });
 });
 
+describe("attempt start", () => {
+  it("is free without a session", async () => {
+    assert.deepEqual(await setup().services.scores.startAttempt("Bits", "nivel-1"), { status: "free" });
+  });
+
+  it("reports the attempt used and the limit", async () => {
+    const sent: unknown[] = [];
+    const { services } = setup({ startAttempt: async (payload) => { sent.push(payload); return reply(200, { attempt: 1, limit: 2 }); } }, joined);
+    assert.deepEqual(await services.scores.startAttempt("Bits", "nivel-1"), { status: "counted", attempt: 1, limit: 2 });
+    assert.deepEqual(sent, [{ session: "K7M2Q", team: "Bits", game: "nivel-1" }]);
+  });
+
+  it("blocks play only when the attempts are exhausted", async () => {
+    const withStatus = (status: number) => setup({ startAttempt: async () => reply(status) }, joined).services.scores.startAttempt("Bits", "nivel-1");
+    assert.deepEqual(await withStatus(409), { status: "exhausted" });
+    assert.deepEqual(await withStatus(403), { status: "closed" });
+    assert.deepEqual(await withStatus(404), { status: "gone" });
+    assert.deepEqual(await withStatus(400), { status: "fail" });
+    assert.deepEqual(await withStatus(503), { status: "queued" });
+  });
+
+  it("queues the start while offline and sends it before the score", async () => {
+    let online = false;
+    const sent: string[] = [];
+    const { services, store } = setup({
+      startAttempt: async () => { if (!online) throw new Error("offline"); sent.push("start"); return reply(200, { attempt: 1, limit: 2 }); },
+      submitScore: async () => { if (!online) throw new Error("offline"); sent.push("score"); return reply(200, {}); },
+    }, joined);
+    assert.deepEqual(await services.scores.startAttempt("Bits", "nivel-1"), { status: "queued" });
+    assert.equal(await services.scores.submit("Bits", "nivel-1", 100), "queued");
+    assert.equal(services.scores.pendingCount(), 2);
+    online = true;
+    assert.equal(await services.scores.flushPending(), 0);
+    assert.deepEqual(sent, ["start", "score"]);
+    assert.equal(JSON.parse(store.data["taller.queue"] ?? "[]").length, 0);
+  });
+
+  it("sends a new score after the queued items, never before", async () => {
+    let online = false;
+    const sent: string[] = [];
+    const { services } = setup({
+      startAttempt: async () => { if (!online) throw new Error("offline"); sent.push("start"); return reply(200, { attempt: 1, limit: 2 }); },
+      submitScore: async (payload) => { if (!online) throw new Error("offline"); sent.push(`score${payload.score}`); return reply(200, {}); },
+    }, joined);
+    await services.scores.startAttempt("Bits", "nivel-1");
+    online = true;
+    assert.equal(await services.scores.submit("Bits", "nivel-1", 100), "ok");
+    assert.deepEqual(sent, ["start", "score100"]);
+    assert.equal(services.scores.pendingCount(), 0);
+  });
+
+  it("shares one flush between concurrent callers: the start is sent once and nothing is lost", async () => {
+    let online = false;
+    const sent: string[] = [];
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const { services } = setup({
+      startAttempt: async () => { if (!online) throw new Error("offline"); sent.push("start"); await gate; return reply(200, { attempt: 1, limit: 2 }); },
+      submitScore: async (payload) => { if (!online) throw new Error("offline"); sent.push(`score${payload.score}`); return reply(200, {}); },
+    }, joined);
+    await services.scores.startAttempt("Bits", "nivel-1");
+    online = true;
+    const first = services.scores.flushPending();
+    const second = services.scores.flushPending();
+    await Promise.resolve();
+    // An item queued while the flush runs must survive it.
+    assert.equal(await Promise.race([services.scores.submit("Bits", "nivel-1", 100), Promise.resolve("pending")]), "pending");
+    release();
+    assert.deepEqual(await Promise.all([first, second]), [0, 0]);
+    assert.equal(sent.filter((entry) => entry === "start").length, 1);
+    assert.equal(await services.scores.flushPending(), 0);
+    assert.deepEqual(sent, ["start", "score100"]);
+    assert.equal(services.scores.pendingCount(), 0);
+  });
+
+  it("drops a queued start that gets 409 and still sends its score", async () => {
+    let online = false;
+    const sent: string[] = [];
+    const { services } = setup({
+      startAttempt: async () => { if (!online) throw new Error("offline"); sent.push("start"); return reply(409); },
+      submitScore: async (payload) => { if (!online) throw new Error("offline"); sent.push(`score${payload.score}`); return reply(200, {}); },
+    }, joined);
+    await services.scores.startAttempt("Bits", "nivel-1");
+    await services.scores.submit("Bits", "nivel-1", 100);
+    assert.equal(services.scores.pendingCount(), 2);
+    online = true;
+    assert.equal(await services.scores.flushPending(), 0);
+    assert.deepEqual(sent, ["start", "score100"]);
+  });
+
+  it("queues a new start behind the queued items so it never overtakes them", async () => {
+    let online = false;
+    const sent: string[] = [];
+    const { services } = setup({
+      startAttempt: async (payload) => { if (!online) throw new Error("offline"); sent.push(`start-${payload.game}`); return reply(200, { attempt: 1, limit: 2 }); },
+    }, joined);
+    await services.scores.startAttempt("Bits", "nivel-1");
+    assert.deepEqual(await services.scores.startAttempt("Bits", "nivel-2"), { status: "queued" });
+    assert.equal(services.scores.pendingCount(), 2);
+    online = true;
+    assert.equal(await services.scores.flushPending(), 0);
+    assert.deepEqual(sent, ["start-nivel-1", "start-nivel-2"]);
+  });
+
+  it("treats an unreadable 200 body on a start as unreachable", async () => {
+    let readable = false;
+    const { services } = setup({ startAttempt: async () => (readable ? reply(200, { attempt: 1, limit: 2 }) : reply(200)) }, joined);
+    assert.deepEqual(await services.scores.startAttempt("Bits", "nivel-1"), { status: "queued" });
+    assert.equal(await services.scores.flushPending(), 1);
+    readable = true;
+    assert.equal(await services.scores.flushPending(), 0);
+  });
+
+  it("sends an old queue item without kind as a score", async () => {
+    const sent: unknown[] = [];
+    const old = { session: "K7M2Q", team: "Bits", game: "nivel-1", score: 50, avatar: 3, tags: [] };
+    const { services } = setup({ submitScore: async (payload) => { sent.push(payload); return reply(200, {}); } }, { ...joined, "taller.queue": JSON.stringify([old]) });
+    assert.equal(await services.scores.flushPending(), 0);
+    assert.deepEqual(sent, [old]);
+  });
+
+  it("tells when the server refuses a score that had no attempt", async () => {
+    const { services } = setup({ submitScore: async () => reply(409) }, joined);
+    assert.equal(await services.scores.submit("Bits", "nivel-1", 100), "refused");
+    assert.equal(services.scores.pendingCount(), 0);
+  });
+});
+
 describe("level access", () => {
   it("caches the open levels for when there is no connection", async () => {
     const { services } = setup({ findSession: async () => reply(200, openSession) });
@@ -141,7 +269,20 @@ describe("facilitator", () => {
   it("signs its actions with the session key", async () => {
     const calls: unknown[][] = [];
     const { services } = setup({ runFacilitatorAction: async (...args) => { calls.push(args); return reply(200, {}); } });
-    assert.equal(await services.facilitator.act({ code: "S1", name: "One", key: "key1" }, "unlock", 3), true);
-    assert.deepEqual(calls, [["S1", "key1", "unlock", 3]]);
+    assert.equal(await services.facilitator.act({ code: "S1", name: "One", key: "key1" }, "unlock", { level: 3 }), true);
+    assert.deepEqual(calls, [["S1", "key1", "unlock", { level: 3 }]]);
+  });
+
+  it("passes the attempt limit when creating a session and when changing it", async () => {
+    const created: unknown[][] = [];
+    const calls: unknown[][] = [];
+    const { services } = setup({
+      createSession: async (...args) => { created.push(args); return reply(200, { code: "S1", name: "One", adminKey: "k" }); },
+      runFacilitatorAction: async (...args) => { calls.push(args); return reply(200, {}); },
+    });
+    await services.facilitator.createSession("One", 3);
+    await services.facilitator.act({ code: "S1", name: "One", key: "k" }, "attempts", { attempts: 4 });
+    assert.deepEqual(created, [["One", 3]]);
+    assert.deepEqual(calls, [["S1", "k", "attempts", { attempts: 4 }]]);
   });
 });

@@ -1,10 +1,10 @@
 import type { FacilitatorAction } from "../../domain/session/session";
-import type { KeyValueStore, SessionGateway } from "./ports";
+import type { FacilitatorActionInput, KeyValueStore, SessionGateway } from "./ports";
 import { STORAGE_KEYS, parseStored } from "./storage-keys";
 
 /** A session created on this device, together with the key that allows managing it. */
 export type FacilitatorSession = { code: string; name: string; key: string };
-export type SessionStatus = { closed: boolean; unlocked: number } | "gone" | null;
+export type SessionStatus = { closed: boolean; unlocked: number; attemptLimit: number | null } | "gone" | null;
 export type CreateOutcome = { ok: true; session: FacilitatorSession } | { ok: false; reason: "rejected" | "offline" };
 
 /** The facilitator's side: creating sessions and managing the ones created on this device. */
@@ -17,9 +17,9 @@ export function createFacilitator(store: KeyValueStore, gateway: SessionGateway)
     sessions,
     forget: (code: string) => save(sessions().filter((session) => session.code !== code)),
 
-    async createSession(name: string): Promise<CreateOutcome> {
+    async createSession(name: string, attempts?: number): Promise<CreateOutcome> {
       try {
-        const reply = await gateway.createSession(name);
+        const reply = await gateway.createSession(name, attempts);
         if (!reply.ok) return { ok: false, reason: "rejected" };
         if (!reply.body) return { ok: false, reason: "offline" };
         const session = { code: reply.body.code, name: reply.body.name, key: reply.body.adminKey };
@@ -41,8 +41,8 @@ export function createFacilitator(store: KeyValueStore, gateway: SessionGateway)
     },
 
     /** Runs a facilitator action. Resolves to whether the server accepted it. */
-    async act(session: FacilitatorSession, action: FacilitatorAction, level?: number): Promise<boolean> {
-      return (await gateway.runFacilitatorAction(session.code, session.key, action, level)).ok;
+    async act(session: FacilitatorSession, action: FacilitatorAction, input?: FacilitatorActionInput): Promise<boolean> {
+      return (await gateway.runFacilitatorAction(session.code, session.key, action, input)).ok;
     },
   };
 }
