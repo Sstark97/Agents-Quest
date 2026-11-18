@@ -103,7 +103,7 @@ export function Level4Screen() {
 
   if (!started) {
     return (
-      <LevelIntro title="NIVEL 4" subtitle="Torres de defensa" team={team} game={GAME} onStart={start} facts={FACTS}>
+      <LevelIntro gameId={GAME} title="NIVEL 4" subtitle="Torres de defensa" team={team} game={GAME} onStart={start} facts={FACTS}>
         <p>El agente es rápido y se salta las normas si no se las dices. Cada <strong style={{ color: "var(--gold)" }}>regla de AGENTS.md</strong> es una torre que frena un mal comportamiento.</p>
         <ul className="legend">
           <li>Llegan <strong>oleadas de malas prácticas</strong> hacia tu repositorio.</li>

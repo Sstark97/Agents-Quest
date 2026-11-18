@@ -53,7 +53,7 @@ export function Level3Screen() {
 
   if (!started) {
     return (
-      <LevelIntro title="NIVEL 3" subtitle="La mochila" team={team} game={GAME} onStart={start} facts={FACTS}>
+      <LevelIntro gameId={GAME} title="NIVEL 3" subtitle="La mochila" team={team} game={GAME} onStart={start} facts={FACTS}>
         <p>El contexto del agente es una <strong style={{ color: "var(--gold)" }}>mesa de trabajo pequeña</strong>: solo caben {CAPACITY} huecos.</p>
         <ul className="legend">
           <li>Cada fichero, log o chat ocupa <strong>1 a 3 huecos</strong>.</li>

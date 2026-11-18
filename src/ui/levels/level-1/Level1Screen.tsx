@@ -12,7 +12,9 @@ import { ICON, Sprite } from "@/src/ui/art/sprites";
 import { sfx } from "@/src/ui/audio/sound";
 import { ExitButton } from "@/src/ui/components/ExitButton";
 import { LevelIntro } from "@/src/ui/components/LevelIntro";
+import { AttemptNotice } from "@/src/ui/components/AttemptNotice";
 import { LevelResult } from "@/src/ui/components/LevelResult";
+import { useAttemptStart } from "@/src/ui/hooks/useAttemptStart";
 import { shake } from "@/src/ui/effects";
 import { useServices } from "@/src/ui/services-context";
 
@@ -83,6 +85,7 @@ export function Level1Screen() {
     setPlan([]); setRunning(false); setReads(0); setSteps(0); setDamage(0); setDone(false); setShowResult(false); setPings(new Map()); setFace(target.start.c > target.cols / 2 ? "l" : "r"); improvised.current = false;
     setLog([{ text: "Nueva misión: llega al cohete sin romper ningún fichero crítico.", tone: "info" }]);
   };
+  const restart = useAttemptStart(GAME, team);
   const start = () => {
     const next = createMaze(hash(teamSeed(team, membership.current()?.code)) % VARIANTS);
     setMaze(next); reset(next); setStarted(true);
@@ -182,7 +185,7 @@ export function Level1Screen() {
 
   if (!started) {
     return (
-      <LevelIntro title="NIVEL 1" subtitle="La cámara de permisos" team={team} game={GAME} onStart={start} facts={FACTS}>
+      <LevelIntro gameId={GAME} title="NIVEL 1" subtitle="La cámara de permisos" team={team} game={GAME} onStart={start} facts={FACTS}>
         <p>Tu robot-agente debe llegar al <strong style={{ color: "var(--gold)" }}>cohete</strong> atravesando un repositorio con <strong style={{ color: "var(--bad)" }}>ficheros críticos ocultos</strong> (<code>.env</code>, <code>secrets.json</code>...). Solo puedes hacer lo que permite el <strong>modo</strong> en el que estés:</p>
         <ul className="legend">
           <li><span className="chip ask">ASK</span> investiga una zona del mapa. No planifica ni ejecuta.</li>
@@ -266,7 +269,8 @@ export function Level1Screen() {
           </p>
         </LevelResult>
       )}
-      {!done && <p><button className="btn ghost" onClick={() => reset()} disabled={running}>REINICIAR</button></p>}
+      {!done && <p><button className="btn ghost" onClick={() => restart.begin(() => reset())} disabled={running || restart.busy}>REINICIAR</button></p>}
+      <AttemptNotice busy={restart.busy} notice={restart.notice} />
     </>
   );
 }

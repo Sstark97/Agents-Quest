@@ -4,9 +4,10 @@ import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useState } from "react";
 import type { FacilitatorSession, SessionStatus } from "@/src/application/client/facilitator";
 import type { ScoreBoard } from "@/src/domain/games/progress";
-import { SESSION_NAME_MAX } from "@/src/domain/session/session";
+import { DEFAULT_ATTEMPT_LIMIT, SESSION_NAME_MAX } from "@/src/domain/session/session";
 import type { Stats } from "@/src/domain/session/stats";
 import { useServices } from "@/src/ui/services-context";
+import { AttemptControl, attemptsHelp } from "./AttemptControl";
 import { ClassStats } from "./ClassStats";
 import { LevelControl } from "./LevelControl";
 
@@ -23,6 +24,7 @@ export function FacilitatorScreen() {
   const [status, setStatus] = useState<SessionStatus>(null);
   const [origin, setOrigin] = useState("");
   const [message, setMessage] = useState("");
+  const [newAttempts, setNewAttempts] = useState(DEFAULT_ATTEMPT_LIMIT);
   const [busy, setBusy] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
   const [teams, setTeams] = useState<{ games: ScoreBoard }[]>([]);
@@ -51,7 +53,7 @@ export function FacilitatorScreen() {
   const create = async () => {
     if (!name.trim()) return;
     setBusy(true); setMessage("");
-    const outcome = await facilitator.createSession(name);
+    const outcome = await facilitator.createSession(name, newAttempts);
     if (outcome.ok) { reloadSessions(); setSelected(outcome.session); setName(""); }
     else setMessage(outcome.reason === "rejected" ? "No se pudo crear la sesión." : "No se pudo conectar.");
     setBusy(false);
@@ -64,8 +66,14 @@ export function FacilitatorScreen() {
 
   const setLevel = async (level: number) => {
     if (!selected) return;
-    if (await facilitator.act(selected, "unlock", level)) setStatus((current) => (current && current !== "gone" ? { ...current, unlocked: level } : current));
+    if (await facilitator.act(selected, "unlock", { level })) setStatus((current) => (current && current !== "gone" ? { ...current, unlocked: level } : current));
     else setMessage("No se pudo cambiar el nivel.");
+  };
+
+  const setAttempts = async (attempts: number) => {
+    if (!selected) return;
+    if (await facilitator.act(selected, "attempts", { attempts })) setStatus((current) => (current && current !== "gone" ? { ...current, attemptLimit: attempts } : current));
+    else setMessage("No se pudo cambiar el límite.");
   };
 
   const act = async (action: SessionAction) => {
@@ -88,6 +96,9 @@ export function FacilitatorScreen() {
       <div className="card">
         <h2>NUEVA SESION</h2>
         <input placeholder="Taller ULPGC" value={name} maxLength={SESSION_NAME_MAX} onChange={(event) => setName(event.target.value)} onKeyDown={(event) => event.key === "Enter" && create()} />
+        <div className="muted">INTENTOS POR NIVEL</div>
+        <AttemptControl value={newAttempts} onChange={setNewAttempts} />
+        <p className="muted">{attemptsHelp(newAttempts)}</p>
         <p><button className="btn start" onClick={create} disabled={busy || !name.trim()}>CREAR SESION</button></p>
         {message && <p className="muted">{message}</p>}
       </div>
@@ -112,6 +123,14 @@ export function FacilitatorScreen() {
                 </div>
               </div>
               {status && status !== "gone" && <LevelControl unlocked={status.unlocked} onChange={setLevel} />}
+              {status && status !== "gone" && (
+                <div className="levelctl">
+                  <h2>INTENTOS POR NIVEL</h2>
+                  {status.attemptLimit === null
+                    ? <p className="muted">Sin límite: sesión creada antes de los intentos.</p>
+                    : <><p className="muted">{attemptsHelp(status.attemptLimit)}</p><AttemptControl value={status.attemptLimit} onChange={setAttempts} /></>}
+                </div>
+              )}
               <div className="row">
                 {status === "gone" ? <button className="btn ghost" onClick={() => forget(selected.code)}>QUITAR DE LA LISTA</button> : <>
                 {status?.closed ? <button className="btn" onClick={() => act("open")}>REABRIR</button> : <button className="btn ghost" onClick={() => act("close")}>CERRAR SESION</button>}

@@ -48,7 +48,7 @@ export function Level2Screen() {
 
   if (!started) {
     return (
-      <LevelIntro title="NIVEL 2" subtitle="Programa al robot" team={team} game={GAME} onStart={start} facts={FACTS}>
+      <LevelIntro gameId={GAME} title="NIVEL 2" subtitle="Programa al robot" team={team} game={GAME} onStart={start} facts={FACTS}>
         <p>El cliente te pide un cambio y tú tienes que <strong style={{ color: "var(--gold)" }}>programar al robot con un prompt</strong>. Elige una opción para cada parte:</p>
         <ul className="legend">
           <li><span className="chip ask">OBJETIVO</span> qué tiene que conseguir. <em>Es lo que más pesa.</em></li>

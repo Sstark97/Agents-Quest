@@ -1,16 +1,17 @@
 "use client";
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { GAMES, findGame } from "@/src/domain/games/catalog";
 import { currentLevelIndex, passScore } from "@/src/domain/games/progress";
 import type { TeamRow } from "@/src/domain/session/ranking";
 import { shareOfPlays, type Stats } from "@/src/domain/session/stats";
 import { Avatar } from "@/src/ui/components/Avatar";
+import { breakdownText, perfectAnnouncement } from "@/src/ui/components/bonus-text";
 import { useSessionCode } from "@/src/ui/hooks/useSessionCode";
 import { useServices } from "@/src/ui/services-context";
 
-const REFRESH_MS = 3000, MOVE_MARK_MS = 4000, TIP_ROTATION_MS = 7000;
+const REFRESH_MS = 3000, MOVE_MARK_MS = 4000, PERFECT_ANNOUNCE_MS = 8000, TIP_ROTATION_MS = 7000;
 const MAX_TIPS = 6, MAX_AVATARS_PER_ISLAND = 12, ROW_HEIGHT_PX = 56;
 /** Podium order on screen: second, first, third. */
 const PODIUM = [{ index: 1, place: 2 }, { index: 0, place: 1 }, { index: 2, place: 3 }];
@@ -28,9 +29,23 @@ export function ProjectorScreen() {
   const [origin, setOrigin] = useState("");
   const [tip, setTip] = useState(0);
   const [moves, setMoves] = useState<Record<string, Move>>({});
+  const [perfect, setPerfect] = useState<{ game: string; team: string } | null>(null);
+  const announceTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const announceQueue = useRef<{ game: string; team: string }[]>([]);
   const previousPlaces = useRef<Record<string, number>>({});
+  /** First perfect scores already known ("game|team"); null until the first load, which announces nothing. */
+  const seenPerfects = useRef<Set<string> | null>(null);
 
   useEffect(() => setOrigin(window.location.origin), []);
+
+  /** Shows the queued perfects one after another, each for PERFECT_ANNOUNCE_MS. */
+  const announceNext = useCallback(() => {
+    clearTimeout(announceTimer.current);
+    const next = announceQueue.current.shift() ?? null;
+    setPerfect(next);
+    announceTimer.current = next ? setTimeout(announceNext, PERFECT_ANNOUNCE_MS) : undefined;
+  }, []);
+  useEffect(() => () => clearTimeout(announceTimer.current), []);
 
   useEffect(() => {
     if (!code) return;
@@ -46,6 +61,15 @@ export function ProjectorScreen() {
           if (previous !== undefined && previous !== place) moved[row.team] = place < previous ? "up" : "down";
           previousPlaces.current[row.team] = place;
         });
+        const currentPerfects = new Map<string, { game: string; team: string }>();
+        list.forEach((row) => Object.entries(row.bonuses ?? {}).forEach(([game, bonus]) => { if (bonus.perfect > 0) currentPerfects.set(`${game}|${row.team}`, { game, team: row.team }); }));
+        const fresh = seenPerfects.current ? [...currentPerfects].filter(([key]) => !seenPerfects.current!.has(key)) : [];
+        seenPerfects.current = new Set(currentPerfects.keys());
+        if (fresh.length) {
+          const idle = announceQueue.current.length === 0 && !announceTimer.current;
+          announceQueue.current.push(...fresh.map(([, perfect]) => perfect));
+          if (idle) announceNext();
+        }
         const { session } = ranking.body;
         setRows(list); setName(session.name); setUnlocked(session.unlocked ?? 0); setClosed(Boolean(session.closed));
         if (Object.keys(moved).length) { setMoves(moved); setTimeout(() => alive && setMoves({}), MOVE_MARK_MS); }
@@ -55,7 +79,7 @@ export function ProjectorScreen() {
     load();
     const timer = setInterval(load, REFRESH_MS);
     return () => { alive = false; clearInterval(timer); };
-  }, [code, leaderboard]);
+  }, [code, leaderboard, announceNext]);
 
   const tips = (stats?.tags ?? []).filter((counter) => stats!.plays[counter.game]).slice(0, MAX_TIPS);
   useEffect(() => { const timer = setInterval(() => setTip((current) => current + 1), TIP_ROTATION_MS); return () => clearInterval(timer); }, []);
@@ -98,6 +122,8 @@ export function ProjectorScreen() {
         </div>
       )}
 
+      {perfect && <div className="tvtip"><strong>{perfectAnnouncement(gameTitle(perfect.game), perfect.team)}</strong></div>}
+
       {currentTip && stats && !closed && (
         <div className="tvtip" key={tip % tips.length}>
           <span className="muted">LO QUE MÁS SE ESTÁ FALLANDO · {gameTitle(currentTip.game)}</span>
@@ -117,6 +143,7 @@ export function ProjectorScreen() {
                   <Avatar n={row.avatar ?? 0} size={place === 1 ? 72 : 56} />
                   <strong className="podname">{row.team}</strong>
                   <em className="podpts">{row.total}</em>
+                  {breakdownText(row) && <small className="muted">{breakdownText(row)}</small>}
                 </> : <span className="muted">—</span>}
                 <div className="podbar"><b>{place}</b></div>
               </div>
@@ -126,7 +153,7 @@ export function ProjectorScreen() {
             {rest.map((row, i) => (
               <li key={row.team} className={moves[row.team] ?? ""} style={{ transform: `translateY(${i * ROW_HEIGHT_PX}px)` }}>
                 <b>{i + 4}º</b>
-                <span className="tvteam"><Avatar n={row.avatar ?? 0} size={30} /> {row.team}</span>
+                <span className="tvteam"><Avatar n={row.avatar ?? 0} size={30} /> {row.team}{breakdownText(row) && <small className="muted" style={{ fontSize: 16 }}> · {breakdownText(row)}</small>}</span>
                 <span className="lvpips">{GAMES.map((game) => <i key={game.id} className={(row.games[game.id] ?? 0) >= passScore(game) ? "ok" : row.games[game.id] ? "mid" : ""} title={game.title} />)}</span>
                 <em>{row.total}</em>
                 {moves[row.team] && <span className="mv">{moves[row.team] === "up" ? "▲" : "▼"}</span>}

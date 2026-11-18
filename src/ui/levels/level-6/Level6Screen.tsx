@@ -52,7 +52,7 @@ export function Level6Screen() {
 
   if (!started) {
     return (
-      <LevelIntro title="NIVEL 6" subtitle="El equipo de agentes" team={team} game={GAME} onStart={start} facts={FACTS}>
+      <LevelIntro gameId={GAME} title="NIVEL 6" subtitle="El equipo de agentes" team={team} game={GAME} onStart={start} facts={FACTS}>
         <p>Una misión grande no cabe en un solo contexto. Reparte las tareas entre el <strong style={{ color: "var(--gold)" }}>agente principal</strong> y dos <strong style={{ color: "var(--gold)" }}>subagentes</strong>, que trabajan a la vez y con su propia mesa limpia.</p>
         <ul className="legend">
           <li><span className="chip plan">PRINCIPAL</span> habla contigo y recibe los resúmenes.</li>

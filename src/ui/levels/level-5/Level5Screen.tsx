@@ -113,7 +113,7 @@ export function Level5Screen() {
 
   if (!started) {
     return (
-      <LevelIntro title="NIVEL 5" subtitle="La palanca de railes" team={team} game={GAME} onStart={start} facts={FACTS}>
+      <LevelIntro gameId={GAME} title="NIVEL 5" subtitle="La palanca de railes" team={team} game={GAME} onStart={start} facts={FACTS}>
         <p>Las tareas llegan por la <strong style={{ color: "var(--gold)" }}>cinta</strong> y, en el cruce, siguen por el rail en el que esté <strong style={{ color: "var(--gold)" }}>la palanca</strong> en ese instante. Cada rail es una herramienta:</p>
         <ul className="legend">
           {RAILS.map((t, k) => (

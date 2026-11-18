@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
+import type { GameBonus } from "@/src/domain/session/bonus";
 import { Avatar } from "./Avatar";
 
-export type RankingRow = { team: string; total: number; avatar?: number };
+export type RankingRow = { team: string; total: number; avatar?: number; bonuses?: Record<string, GameBonus> };
 /** Ranking of the session and the 1-based position of this team in it (0 = not ranked). */
 export type RankingSummary = { rows: RankingRow[]; rank: number } | null;
 

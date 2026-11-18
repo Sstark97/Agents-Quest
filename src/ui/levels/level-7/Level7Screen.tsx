@@ -50,7 +50,7 @@ export function Level7Screen() {
 
   if (!started) {
     return (
-      <LevelIntro title="JEFE FINAL" subtitle="La misión completa" team={team} onStart={start} facts={FACTS}>
+      <LevelIntro gameId={GAME} title="JEFE FINAL" subtitle="La misión completa" team={team} onStart={start} facts={FACTS}>
         <p>El <strong style={{ color: "var(--bad)" }}>Legacy</strong> guarda la salida. Para vencerlo tienes que llevar una misión de principio a fin tomando <strong style={{ color: "var(--gold)" }}>una decisión por cada concepto</strong> que has practicado.</p>
         <ul className="legend">
           <li><span className="chip ask">1</span> en qué modo empiezas</li>

@@ -1,10 +1,11 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { GAMES } from "@/src/domain/games/catalog";
 import type { TeamRow } from "@/src/domain/session/ranking";
 import type { SessionInfo } from "@/src/domain/session/session";
 import { Avatar } from "@/src/ui/components/Avatar";
+import { breakdownText } from "@/src/ui/components/bonus-text";
 import { useSessionCode } from "@/src/ui/hooks/useSessionCode";
 import { useServices } from "@/src/ui/services-context";
 
@@ -37,6 +38,9 @@ export function RankingScreen() {
     return () => { alive = false; clearInterval(timer); };
   }, [code, leaderboard]);
 
+  // Sessions created before the attempts existed have no bonus, so they keep the old table.
+  const showBonus = info != null && info.attemptLimit !== null;
+
   if (code === null) return null;
   if (!code) {
     return (
@@ -56,17 +60,26 @@ export function RankingScreen() {
       <div className="card">
         <table className="rank-big">
           <thead>
-            <tr><th>#</th><th>Equipo</th>{GAMES.map((game) => <th className="num" key={game.id}>{game.short}</th>)}<th className="num">Total</th></tr>
+            <tr><th>#</th><th>Equipo</th>{GAMES.map((game) => <th className="num lvl" key={game.id}>{game.short}</th>)}{showBonus && <th className="num">Bonus</th>}<th className="num">Total</th></tr>
           </thead>
           <tbody>
-            {teams.length === 0 && <tr><td colSpan={3 + GAMES.length} className="muted">Aún no hay puntuaciones.</td></tr>}
+            {teams.length === 0 && <tr><td colSpan={3 + GAMES.length + (showBonus ? 1 : 0)} className="muted">Aún no hay puntuaciones.</td></tr>}
             {teams.map((row, i) => (
-              <tr key={row.team} className={i === 0 ? "first" : ""}>
-                <td>{i + 1}º</td>
-                <td><Avatar n={row.avatar ?? 0} size={22} /> {row.team}</td>
-                {GAMES.map((game) => <td className="num" key={game.id}>{row.games[game.id] ?? "–"}</td>)}
-                <td className="num"><strong>{row.total}</strong></td>
-              </tr>
+              <Fragment key={row.team}>
+                <tr className={i === 0 ? "first" : ""}>
+                  <td>{i + 1}º</td>
+                  <td><Avatar n={row.avatar ?? 0} size={22} /> {row.team}</td>
+                  {GAMES.map((game) => <td className="num lvl" key={game.id}>{row.games[game.id] ?? "–"}</td>)}
+                  {showBonus && <td className="num">{row.bonus.arrival + row.bonus.perfect > 0 ? `+${row.bonus.arrival + row.bonus.perfect}` : "–"}</td>}
+                  <td className="num"><strong>{row.total}</strong></td>
+                </tr>
+                {breakdownText(row) && (
+                  <tr>
+                    <td />
+                    <td colSpan={2 + GAMES.length + (showBonus ? 1 : 0)} className="muted">{breakdownText(row)}</td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
           </tbody>
         </table>

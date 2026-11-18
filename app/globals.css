@@ -72,6 +72,8 @@ th { font: 10px var(--px); color: var(--muted); text-align: left; padding: 10px 
 td { padding: 10px 8px; border-bottom: 2px dashed #ffffff22; }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 tr.first td { color: var(--gold); }
+/* On a phone the ranking keeps position, team, bonus and total: the per-level scores do not fit. */
+@media (max-width: 560px) { .rank-big { font-size: 20px; } .rank-big .lvl { display: none; } }
 
 /* intro */
 .legend { list-style: none; padding: 0; display: grid; gap: 10px; }
