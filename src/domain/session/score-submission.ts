@@ -20,11 +20,17 @@ const sanitizeTags = (raw: unknown) =>
     ? [...new Set(raw.filter((tag): tag is string => typeof tag === "string").map((tag) => tag.trim().slice(0, TAG_MAX_LENGTH)).filter(Boolean))].slice(0, TAGS_MAX)
     : [];
 
+/** Validates the team name of untrusted input. Returns null when it is empty or contains the storage separator. */
+export function parseTeam(raw: unknown): string | null {
+  const team = sanitizeTeamName(raw);
+  return team && !team.includes(TEAM_GAME_SEPARATOR) ? team : null;
+}
+
 /** Validates the team and the game of untrusted input. Returns null when either is not usable. */
 export function parseTeamGame(raw: { team?: unknown; game?: unknown } | null): { team: string; game: string } | null {
-  const team = sanitizeTeamName(raw?.team);
+  const team = parseTeam(raw?.team);
   const game = findGame(raw?.game);
-  if (!team || team.includes(TEAM_GAME_SEPARATOR) || !game) return null;
+  if (!team || !game) return null;
   return { team, game: game.id };
 }
 
