@@ -1,10 +1,14 @@
 /** A workshop session: one facilitator, many teams, one ranking. */
-export type SessionRecord = { name: string; closed: boolean; adminKey: string; unlocked: number };
+export type SessionRecord = { name: string; closed: boolean; adminKey: string; unlocked: number; attemptLimit: number | null };
 
 /** What anyone may know about a session (never the facilitator key). */
-export type SessionInfo = { code: string; name: string; closed: boolean; unlocked: number };
+export type SessionInfo = { code: string; name: string; closed: boolean; unlocked: number; attemptLimit: number | null };
 
 export const SESSION_NAME_MAX = 40;
+/** Attempts per team and level a new session gets when the facilitator does not choose. */
+export const DEFAULT_ATTEMPT_LIMIT = 2;
+export const ATTEMPT_LIMIT_MIN = 1;
+export const ATTEMPT_LIMIT_MAX = 5;
 export const SESSION_CODE_LENGTH = 5;
 export const SESSION_CODE_MAX = 8;
 /** Sessions and their scores expire after 30 days. */
@@ -20,7 +24,14 @@ export const sessionCodeFromBytes = (bytes: Uint8Array) => [...bytes].map((byte)
 
 export const sanitizeSessionName = (raw: unknown) => (typeof raw === "string" ? raw.trim().slice(0, SESSION_NAME_MAX) : "");
 
-export const toSessionInfo = (code: string, session: SessionRecord): SessionInfo => ({ code, name: session.name, closed: session.closed, unlocked: session.unlocked });
+/** A valid attempt limit, or null when the value is not an integer between the minimum and the maximum. */
+export const parseAttemptLimit = (raw: unknown): number | null =>
+  typeof raw === "number" && Number.isInteger(raw) && raw >= ATTEMPT_LIMIT_MIN && raw <= ATTEMPT_LIMIT_MAX ? raw : null;
+
+/** Whether `used` attempts fit in the limit. A null limit (sessions created before the limit existed) is unlimited. */
+export const isWithinLimit = (used: number, limit: number | null) => limit === null || used <= limit;
+
+export const toSessionInfo = (code: string, session: SessionRecord): SessionInfo => ({ code, name: session.name, closed: session.closed, unlocked: session.unlocked, attemptLimit: session.attemptLimit });
 
 /** What a facilitator can do with a session they created. */
-export type FacilitatorAction = "close" | "open" | "reset" | "delete" | "unlock";
+export type FacilitatorAction = "close" | "open" | "reset" | "delete" | "unlock" | "attempts";
