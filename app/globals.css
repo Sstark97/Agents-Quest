@@ -455,7 +455,14 @@ main:has(.tv) { max-width: 1280px; }
 @container (max-width: 560px) { .isle span em { display: none; } .isle span { font-size: 8px; padding: 2px 4px; } }
 
 /* --- Práctica jugable y lección final --- */
-.practice, .lesson { margin: 18px 0; background: #0b0f2a; box-shadow: 0 0 0 4px #000, inset 0 0 0 4px var(--plan); padding: 16px; text-align: left; }
+.practice, .lesson, .rules { margin: 18px 0; background: #0b0f2a; box-shadow: 0 0 0 4px #000, inset 0 0 0 4px var(--plan); padding: 16px; text-align: left; }
+.rules { box-shadow: 0 0 0 4px #000, inset 0 0 0 4px var(--ask); }
+.rules .guidehead { color: var(--ask); gap: 8px; flex-wrap: wrap; } .rules .guidehead + .lvpips, .rules .lvpips { margin-bottom: 10px; }
+.rules .guidehead:not(:first-child) { margin-top: 16px; }
+.rules .fb, .rules .muted { margin: 6px 0; overflow-wrap: anywhere; }
+.rules li { overflow-wrap: anywhere; } .rules li em { font-style: normal; color: var(--gold); display: block; }
+.rules li em.out { color: var(--muted); } .rules li em.mine { color: var(--ok); }
+.chip.tries { border-color: var(--ask); color: var(--ask); } .chip.tries.out { border-color: var(--bad); color: var(--bad); }
 .lesson { box-shadow: 0 0 0 4px #000, inset 0 0 0 4px var(--gold); }
 .lesson .idea { font-size: 30px; line-height: 1.05; color: var(--gold); margin: 0 0 8px; }
 .lesson p { margin: 6px 0; } .lesson strong { color: var(--plan); font-weight: normal; }

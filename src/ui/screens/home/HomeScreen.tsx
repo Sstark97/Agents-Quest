@@ -6,6 +6,7 @@ import { hasJoinDetails, type JoinResult, type JoinedSession } from "@/src/appli
 import { GAMES } from "@/src/domain/games/catalog";
 import { levelStates, type ScoreBoard } from "@/src/domain/games/progress";
 import { sfx } from "@/src/ui/audio/sound";
+import { usePlayStatus } from "@/src/ui/hooks/usePlayStatus";
 import { useUnlockedLevels } from "@/src/ui/hooks/useUnlockedLevels";
 import { useServices } from "@/src/ui/services-context";
 import { LevelList } from "./LevelList";
@@ -33,6 +34,7 @@ export function HomeScreen() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const { unlocked, loading } = useUnlockedLevels();
+  const play = usePlayStatus(team);
   const [heroAt, setHeroAt] = useState<number | null>(null);
   const [walking, setWalking] = useState(false);
   const [opened, setOpened] = useState(0);
@@ -107,7 +109,7 @@ export function HomeScreen() {
       {!session && <p className="muted">Únete a una sesión para jugar: los niveles los abre el formador a medida que avanza la explicación.</p>}
 
       <WorldMap states={states} avatar={avatar} canPlay={canPlay} here={here} heroAt={heroAt ?? here} walking={walking} onEnter={(href) => { sfx.click(); router.push(href); }} />
-      <LevelList states={states} scores={scores} medals={medals} canPlay={canPlay} />
+      <LevelList states={states} scores={scores} medals={medals} canPlay={canPlay} play={play.view} />
 
       <p><Link href="/glosario">Glosario &gt;</Link> · <Link href="/ranking">Ver ranking &gt;</Link> · <Link href="/sesion/nueva">Soy formador &gt;</Link></p>
     </>

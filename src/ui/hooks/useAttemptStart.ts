@@ -14,9 +14,9 @@ export type AttemptNotice = { tone: "good" | "warn" | "bad"; text: string };
 /**
  * Reserves an attempt with the server before a level starts or restarts. `begin(play)` runs `play` once the
  * attempt is reserved (after a short notice when the session has a limit) and never runs it when the
- * attempts are exhausted. Without a session, or with a session without limit, `play` runs at once.
+ * attempts are exhausted. `onReserved` runs once the outcome is known, before the notice. Without a session, or with a session without limit, `play` runs at once.
  */
-export function useAttemptStart(game: string, team: string) {
+export function useAttemptStart(game: string, team: string, onReserved?: () => void) {
   const { scores } = useServices();
   const [notice, setNotice] = useState<AttemptNotice | null>(null);
   const [busy, setBusy] = useState(false);
@@ -36,6 +36,7 @@ export function useAttemptStart(game: string, team: string) {
     inFlight.current = false;
     if (!alive.current) return;
     setBusy(false);
+    onReserved?.();
     if (outcome.status === "exhausted") { setNotice({ tone: "bad", text: EXHAUSTED_MESSAGE }); return; }
     const shown: AttemptNotice | null =
       outcome.status === "counted" && outcome.attempt !== null && outcome.limit !== null ? { tone: "good", text: `INTENTO ${outcome.attempt}/${outcome.limit}` }
@@ -48,7 +49,7 @@ export function useAttemptStart(game: string, team: string) {
       setNotice(null);
     }
     play();
-  }, [scores, team, game]);
+  }, [scores, team, game, onReserved]);
 
   return { notice, busy, begin };
 }

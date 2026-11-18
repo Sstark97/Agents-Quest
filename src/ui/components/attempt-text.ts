@@ -1,0 +1,58 @@
+import type { Game } from "@/src/domain/games/catalog";
+import { ARRIVAL_BONUSES, FIRST_PERFECT_BONUS, bonusScore } from "@/src/domain/session/bonus";
+import type { GamePlayStatus } from "@/src/domain/session/play-status";
+
+type ScoredGame = Pick<Game, "maxScore">;
+const LAST_ATTEMPT = 1;
+
+export const OFFLINE_TAG = "sin conexión";
+export const SPEND_NOTICE = "Se gasta un intento al pulsar PRESS START, aunque no termines. Cuenta tu mejor intento.";
+export const PRACTICE_HINT = "La prueba de arriba sigue disponible: no puntúa.";
+
+const plural = (count: number, one: string, many: string) => (count === 1 ? one : many);
+
+/** «INTENTOS: 1 de 2 usados · te queda 1 · ¡último intento!» */
+export function attemptsLine(used: number, limit: number): string {
+  const left = Math.max(0, limit - used);
+  const base = `INTENTOS: ${used} de ${limit} usados · ${plural(left, "te queda", "te quedan")} ${left}`;
+  return left === LAST_ATTEMPT ? `${base} · ¡último intento!` : base;
+}
+
+export const exhaustedLine = (best: number | null) =>
+  `Has agotado tus intentos en este nivel. Cuenta tu mejor puntuación: ${best === null ? "sin puntuación" : best}`;
+
+export const startLabel = (left: number) => (left === LAST_ATTEMPT ? "PRESS START · ÚLTIMO INTENTO" : "PRESS START");
+
+export function speedRule(game: ScoredGame): string {
+  const places = ARRIVAL_BONUSES.map((bonus, index) => `${index + 1}º +${bonus}`).join(" · ");
+  return `Rapidez: ${places} para los primeros en superarlo con ${bonusScore(game)} o más`;
+}
+
+export const perfectRule = (game: ScoredGame) => `Primer pleno (${game.maxScore}): +${FIRST_PERFECT_BONUS}`;
+
+export function speedState(status: GamePlayStatus): string {
+  if (status.mine && status.mine.arrival > 0) return `¡Lo tienes tú! +${status.mine.arrival}`;
+  const total = ARRIVAL_BONUSES.length;
+  const free = Math.max(0, total - status.arrivalTaken);
+  if (free === 0) return "Plazas agotadas";
+  return `${plural(free, "Queda", "Quedan")} ${free} de ${total} plazas`;
+}
+
+export function perfectState(status: GamePlayStatus): string {
+  if (status.mine && status.mine.perfect > 0) return `¡Lo tienes tú! +${status.mine.perfect}`;
+  return status.perfectBy ? `Conseguido por ${status.perfectBy}` : "Libre";
+}
+
+export function resultLeftLine(left: number): string {
+  return left <= 0 ? "No te quedan intentos en este nivel" : `${plural(left, "Te queda", "Te quedan")} ${left} ${plural(left, "intento", "intentos")}`;
+}
+
+export const retryLabel = (left: number) => `REINTENTAR (${left} ${plural(left, "restante", "restantes")})`;
+
+/** Tells the team which score counts when an earlier attempt was better than this one. */
+export const bestCountsLine = (best: number | null, points: number): string | null =>
+  best !== null && best > points ? `En el ranking cuenta tu mejor intento: ${best}` : null;
+
+export const restartLabel = (left: number) => `REINICIAR (gasta 1 · ${plural(left, "queda", "quedan")} ${left})`;
+
+export const attemptsBadge = (used: number, limit: number) => (used >= limit ? "sin intentos" : `${used}/${limit}`);

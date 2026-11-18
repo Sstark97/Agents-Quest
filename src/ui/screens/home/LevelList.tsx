@@ -1,17 +1,21 @@
 import Link from "next/link";
+import type { PlayStatusView } from "@/src/application/client/play-status";
 import { GAMES } from "@/src/domain/games/catalog";
 import type { LevelState, ScoreBoard } from "@/src/domain/games/progress";
 import { ICON, Sprite } from "@/src/ui/art/sprites";
+import { attemptsBadge } from "@/src/ui/components/attempt-text";
 
-type Props = { states: LevelState[]; scores: ScoreBoard; medals: string[]; canPlay: boolean };
+type Props = { states: LevelState[]; scores: ScoreBoard; medals: string[]; canPlay: boolean; play: PlayStatusView };
 
 /** One card per level with its state, best score and medals. */
-export function LevelList({ states, scores, medals, canPlay }: Props) {
+export function LevelList({ states, scores, medals, canPlay, play }: Props) {
   return (
     <>
       {GAMES.map((game, i) => {
         const state = states[i];
         const medalCount = medals.filter((medal) => medal.startsWith(`${game.id}:`)).length;
+        const limit = play.state === "none" ? 0 : play.status.limit;
+        const tries = play.state === "none" || state === "locked" ? null : play.status.games[game.id];
         return (
           <div className={`card ${state === "locked" ? "locked" : ""}`} key={game.id}>
             <h2>{state === "locked" && <Sprite art={ICON.lock} className="ico" />}{game.title}</h2>
@@ -24,6 +28,7 @@ export function LevelList({ states, scores, medals, canPlay }: Props) {
                 </>
               ) : canPlay ? <Link className="btn" href={game.href}>{state === "done" ? "JUGAR OTRA VEZ" : "▶ JUGAR"}</Link> : <button className="btn" disabled>Pon nombre a tu equipo</button>}
               {state === "done" && <span className="chip plan">SUPERADO</span>}
+              {tries && <span className={`chip tries ${tries.left === 0 ? "out" : ""}`}>{attemptsBadge(tries.used, limit)}</span>}
               {medalCount > 0 && <span className="chip medalchip"><Sprite art={ICON.star} className="ico" />×{medalCount}</span>}
               {scores[game.id] !== undefined && state !== "locked" && <span>Mejor: <strong>{scores[game.id]}</strong> / {game.maxScore}</span>}
             </div>

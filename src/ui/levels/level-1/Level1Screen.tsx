@@ -15,6 +15,8 @@ import { LevelIntro } from "@/src/ui/components/LevelIntro";
 import { AttemptNotice } from "@/src/ui/components/AttemptNotice";
 import { LevelResult } from "@/src/ui/components/LevelResult";
 import { useAttemptStart } from "@/src/ui/hooks/useAttemptStart";
+import { usePlayStatus } from "@/src/ui/hooks/usePlayStatus";
+import { restartLabel } from "@/src/ui/components/attempt-text";
 import { shake } from "@/src/ui/effects";
 import { useServices } from "@/src/ui/services-context";
 
@@ -85,7 +87,10 @@ export function Level1Screen() {
     setPlan([]); setRunning(false); setReads(0); setSteps(0); setDamage(0); setDone(false); setShowResult(false); setPings(new Map()); setFace(target.start.c > target.cols / 2 ? "l" : "r"); improvised.current = false;
     setLog([{ text: "Nueva misión: llega al cohete sin romper ningún fichero crítico.", tone: "info" }]);
   };
-  const restart = useAttemptStart(GAME, team);
+  const play = usePlayStatus(team, { enabled: started });
+  const restart = useAttemptStart(GAME, team, play.refresh);
+  const restartLeft = play.view.state === "none" ? null : play.view.status.games[GAME]?.left ?? null;
+  const restartHidden = play.view.state === "live" && restartLeft === 0;
   const start = () => {
     const next = createMaze(hash(teamSeed(team, membership.current()?.code)) % VARIANTS);
     setMaze(next); reset(next); setStarted(true);
@@ -262,14 +267,14 @@ export function Level1Screen() {
       </div>
 
       {showResult && (
-        <LevelResult game={GAME} team={team} points={final} max={MAX_SCORE} onRetry={() => reset()} tags={tags} medals={runMedals(damage, reads)}>
+        <LevelResult game={GAME} team={team} points={final} max={MAX_SCORE} onRetry={() => { reset(); play.refresh(); }} tags={tags} medals={runMedals(damage, reads)}>
           <p>
             {damage === 0 ? "Despliegue limpio: ningún fichero roto." : `${damage} fichero(s) roto(s).`}{" "}
             {reads} lectura(s), {steps} pasos (ideal: {maze.par}).
           </p>
         </LevelResult>
       )}
-      {!done && <p><button className="btn ghost" onClick={() => restart.begin(() => reset())} disabled={running || restart.busy}>REINICIAR</button></p>}
+      {!done && !restartHidden && <p><button className="btn ghost" onClick={() => restart.begin(() => reset())} disabled={running || restart.busy}>{restartLeft === null ? "REINICIAR" : restartLabel(restartLeft)}</button></p>}
       <AttemptNotice busy={restart.busy} notice={restart.notice} />
     </>
   );

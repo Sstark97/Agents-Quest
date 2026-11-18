@@ -11,10 +11,12 @@ import { sanitizeTeamName } from "@/src/domain/session/score-submission";
 import { ICON, Sprite } from "@/src/ui/art/sprites";
 import { sfx } from "@/src/ui/audio/sound";
 import { useAttemptStart } from "@/src/ui/hooks/useAttemptStart";
+import { usePlayStatus } from "@/src/ui/hooks/usePlayStatus";
 import { useCountUp } from "@/src/ui/hooks/useCountUp";
 import { useLockScroll } from "@/src/ui/hooks/useLockScroll";
 import { useUnlockedLevels } from "@/src/ui/hooks/useUnlockedLevels";
 import { useServices } from "@/src/ui/services-context";
+import { bestCountsLine, resultLeftLine, retryLabel } from "./attempt-text";
 import { levelBonusMessages } from "./bonus-text";
 import { AttemptNotice } from "./AttemptNotice";
 import { Confetti } from "./Confetti";
@@ -35,7 +37,11 @@ export function LevelResult({ game, team, points, max, onRetry, tags = [], medal
   const shown = useCountUp(points);
   const { unlocked } = useUnlockedLevels(3000);
   const counted = useRef(false);
-  const retry = useAttemptStart(game, team);
+  const play = usePlayStatus(team);
+  const retry = useAttemptStart(game, team, play.refresh);
+  const gameStatus = play.view.state === "none" ? null : play.view.status.games[game] ?? null;
+  const exhausted = play.view.state === "live" && gameStatus?.left === 0;
+  const bestLine = gameStatus ? bestCountsLine(gameStatus.best, points) : null;
 
   const index = GAMES.findIndex((candidate) => candidate.id === game);
   const current = GAMES[index];
@@ -62,6 +68,7 @@ export function LevelResult({ game, team, points, max, onRetry, tags = [], medal
       const result = await scores.submit(team, game, points, tags);
       if (!alive) return;
       setSent(result);
+      play.refresh();
       const session = membership.current();
       if (!session || WITHOUT_RANKING.includes(result)) return;
       try {
@@ -116,6 +123,8 @@ export function LevelResult({ game, team, points, max, onRetry, tags = [], medal
         {sent === "queued" && <p className="fb warn">Sin conexión: tu puntuación está guardada y se enviará sola cuando vuelva internet.</p>}
         {sent === "refused" && <p className="fb warn">Esta partida no cuenta: no tenía un intento disponible.</p>}
         {sent === "fail" && <p className="muted">No se pudo enviar. Tu puntuación está guardada en este navegador; díselo a un formador.</p>}
+        {gameStatus && <p className={`fb ${gameStatus.left === 0 ? "warn" : "good"}`}>{resultLeftLine(gameStatus.left)}</p>}
+        {bestLine && <p className="fb good">{bestLine}</p>}
         {summary && summary.rank > 0 && levelBonusMessages(summary.rows[summary.rank - 1].bonuses?.[game]).map((message) => <p key={message} className="fb good">{message}</p>)}
         <SessionRankingSummary summary={summary} team={sanitizeTeamName(team)} />
         {summary && <p><Link className="btn ghost" href="/ranking">VER TODO EL RANKING</Link></p>}
@@ -123,7 +132,7 @@ export function LevelResult({ game, team, points, max, onRetry, tags = [], medal
         <AttemptNotice busy={retry.busy} notice={retry.notice} />
         <div className="row">
           {nextGame && index + 1 < unlocked && <Link className="btn start" href={nextGame.href}>SIGUIENTE NIVEL</Link>}
-          <button className="btn ghost" onClick={() => retry.begin(onRetry)} disabled={retry.busy}>REINTENTAR</button>
+          {!exhausted && <button className="btn ghost" onClick={() => retry.begin(onRetry)} disabled={retry.busy}>{gameStatus ? retryLabel(gameStatus.left) : "REINTENTAR"}</button>}
           <Link className="btn ghost" href="/">MENU</Link>
         </div>
       </div>
