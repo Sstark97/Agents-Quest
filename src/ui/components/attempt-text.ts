@@ -37,24 +37,33 @@ export const exhaustedLine = (best: number | null) =>
 
 export const startLabel = (left: number) => (left === LAST_ATTEMPT ? "PRESS START · ÚLTIMO INTENTO" : "PRESS START");
 
-export function speedRule(game: ScoredGame): string {
-  const places = ARRIVAL_BONUSES.map((bonus, index) => `${index + 1}º +${bonus}`).join(" · ");
-  return `Rapidez: ${places} para los primeros en superarlo con ${bonusScore(game)} o más`;
+/** Whether a prize is still free, already won by another team, or won by this team. */
+export type PrizeState = "free" | "taken" | "mine";
+export type PrizeRow = { label: string; points: number; state: PrizeState; text: string };
+
+const PRIZE_TEXT: Record<PrizeState, string> = { free: "Libre", taken: "Ocupada", mine: "¡Tuya!" };
+
+/** «RAPIDEZ · con 240 o más»: what a team needs to compete for a speed place. */
+export const speedHeading = (game: ScoredGame) => `RAPIDEZ · con ${bonusScore(game)} o más`;
+
+/** «PRIMER PLENO · sacar 300». */
+export const perfectHeading = (game: ScoredGame) => `PRIMER PLENO · sacar ${game.maxScore}`;
+
+/** One row per speed place: 1º +45, 2º +30, 3º +15, each free, taken or this team's. */
+export function speedPlaces(status: GamePlayStatus): PrizeRow[] {
+  const minePlace = status.mine && status.mine.arrival > 0 ? status.mine.place : null;
+  return ARRIVAL_BONUSES.map((points, index) => {
+    const place = index + 1;
+    const state: PrizeState = place === minePlace ? "mine" : index < status.arrivalTaken ? "taken" : "free";
+    return { label: `${place}º`, points, state, text: PRIZE_TEXT[state] };
+  });
 }
 
-export const perfectRule = (game: ScoredGame) => `Primer pleno (${game.maxScore}): +${FIRST_PERFECT_BONUS}`;
-
-export function speedState(status: GamePlayStatus): string {
-  if (status.mine && status.mine.arrival > 0) return `¡Lo tienes tú! +${status.mine.arrival}`;
-  const total = ARRIVAL_BONUSES.length;
-  const free = Math.max(0, total - status.arrivalTaken);
-  if (free === 0) return "Plazas agotadas";
-  return `${plural(free, "Queda", "Quedan")} ${free} de ${total} plazas`;
-}
-
-export function perfectState(status: GamePlayStatus): string {
-  if (status.mine && status.mine.perfect > 0) return `¡Lo tienes tú! +${status.mine.perfect}`;
-  return status.perfectBy ? `Conseguido por ${status.perfectBy}` : "Libre";
+/** The single first-perfect prize: free, won by another team (named) or this team's. */
+export function perfectPrize(status: GamePlayStatus): PrizeRow {
+  const state: PrizeState = status.mine && status.mine.perfect > 0 ? "mine" : status.perfectBy ? "taken" : "free";
+  const text = state === "taken" ? `Conseguido por ${status.perfectBy}` : state === "mine" ? "¡Tuyo!" : PRIZE_TEXT.free;
+  return { label: "1º", points: FIRST_PERFECT_BONUS, state, text };
 }
 
 export function resultLeftLine(left: number): string {

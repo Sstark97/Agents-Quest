@@ -1,7 +1,6 @@
 import type { PlayStatusView } from "@/src/application/client/play-status";
-import { ARRIVAL_BONUSES } from "@/src/domain/session/bonus";
 import { findGame } from "@/src/domain/games/catalog";
-import { OFFLINE_TAG, PRACTICE_HINT, SPEND_NOTICE, attemptsLine, attemptsShort, bonusShort, exhaustedLine, perfectRule, perfectState, speedRule, speedState } from "./attempt-text";
+import { OFFLINE_TAG, PRACTICE_HINT, SPEND_NOTICE, attemptsLine, attemptsShort, bonusShort, exhaustedLine, perfectHeading, perfectPrize, speedHeading, speedPlaces, type PrizeRow } from "./attempt-text";
 
 type Props = { game: string; view: PlayStatusView; hasPractice: boolean };
 
@@ -19,9 +18,10 @@ export function PlayRules({ game, view, hasPractice }: Props) {
   const exhausted = left === 0;
   const lastOne = left === 1;
   return (
-    <details className="rules" open={exhausted || undefined}>
+    <details className="rules">
       <summary>
         <span className="rulestitle">REGLAS DE LA PARTIDA{view.state === "offline" && <span className="muted"> · {OFFLINE_TAG}</span>}</span>
+        <span className="rulestoggle" aria-hidden="true" />
         <span className="rulesbrief"><strong className={exhausted ? "bad" : lastOne ? "warn" : ""}>{attemptsShort(left, limit)}</strong> · {bonusShort(status)}</span>
       </summary>
       <div className="lvpips" aria-hidden="true">
@@ -35,10 +35,22 @@ export function PlayRules({ game, view, hasPractice }: Props) {
         </>
       ) : <p className="muted">{SPEND_NOTICE}</p>}
       <div className="guidehead"><span>BONUS EN JUEGO</span></div>
-      <ul className="legend">
-        <li>{speedRule(catalog)} <em className={status.mine?.arrival ? "mine" : status.arrivalTaken >= ARRIVAL_BONUSES.length ? "out" : ""}>{speedState(status)}</em></li>
-        <li>{perfectRule(catalog)} <em className={status.mine?.perfect ? "mine" : status.perfectBy ? "out" : ""}>{perfectState(status)}</em></li>
-      </ul>
+      <PrizeTable heading={speedHeading(catalog)} rows={speedPlaces(status)} />
+      <PrizeTable heading={perfectHeading(catalog)} rows={[perfectPrize(status)]} />
     </details>
+  );
+}
+
+/** One bonus and its places: position, points and whether it is still free. */
+function PrizeTable({ heading, rows }: { heading: string; rows: PrizeRow[] }) {
+  return (
+    <div className="prizes">
+      <div className="prizehead">{heading}</div>
+      {rows.map((row) => (
+        <div key={row.label} className={`prize ${row.state}`}>
+          <span className="pos">{row.label}</span><span className="pts">+{row.points}</span><span className="state">{row.text}</span>
+        </div>
+      ))}
+    </div>
   );
 }
