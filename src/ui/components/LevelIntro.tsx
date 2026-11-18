@@ -5,7 +5,7 @@ import { useAttemptStart } from "@/src/ui/hooks/useAttemptStart";
 import { PLAY_STATUS_POLL_MS, usePlayStatus } from "@/src/ui/hooks/usePlayStatus";
 import { Practice } from "@/src/ui/practice/Practice";
 import { AttemptNotice } from "./AttemptNotice";
-import { attemptsBadge, startLabel } from "./attempt-text";
+import { startLabel } from "./attempt-text";
 import { PlayRules } from "./PlayRules";
 
 type Props = { gameId: string; title: string; subtitle: string; team: string; onStart: () => void; facts?: ReactNode[]; game?: string; children: ReactNode };
@@ -16,18 +16,16 @@ export function LevelIntro({ gameId, title, subtitle, team, onStart, facts, game
   const { notice, busy, begin } = useAttemptStart(gameId, team, play.refresh);
   const left = play.view.state === "none" ? null : play.view.status.games[gameId]?.left ?? null;
   const exhausted = play.view.state === "live" && left === 0;
-  const gameStatus = play.view.state === "none" ? null : play.view.status.games[gameId];
-  const tries = gameStatus ? <> · Intentos: <strong style={{ color: exhausted ? "var(--bad)" : "var(--ask)" }}>{attemptsBadge(gameStatus.used, play.view.state === "none" ? 0 : play.view.status.limit)}</strong></> : null;
   return (
     <>
       <h1 className="glow"><i className="sp robot logo" />{title}</h1>
       <h2>{subtitle}</h2>
-      <p className="muted">Equipo: <strong style={{ color: "var(--gold)" }}>{team || "(sin nombre)"}</strong>{tries}</p>
+      <p className="muted">Equipo: <strong style={{ color: "var(--gold)" }}>{team || "(sin nombre)"}</strong></p>
       <div className="card">
+        <PlayRules game={gameId} view={play.view} hasPractice={!!game} />
         {children}
         {game && <Practice game={game} />}
         {facts && <ul className="facts">{facts.map((fact, index) => <li key={index}>{fact}</li>)}</ul>}
-        <PlayRules game={gameId} view={play.view} hasPractice={!!game} />
         <AttemptNotice busy={busy} notice={notice} />
         <div className="row">
           {team ? (!exhausted && <button className="btn start" onClick={() => begin(onStart)} disabled={busy}>{left === null ? "PRESS START" : startLabel(left)}</button>) : <Link className="btn" href="/">Primero pon nombre a tu equipo</Link>}

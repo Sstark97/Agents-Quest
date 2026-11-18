@@ -1,11 +1,14 @@
 import type { PlayStatusView } from "@/src/application/client/play-status";
 import { ARRIVAL_BONUSES } from "@/src/domain/session/bonus";
 import { findGame } from "@/src/domain/games/catalog";
-import { OFFLINE_TAG, PRACTICE_HINT, SPEND_NOTICE, attemptsLine, exhaustedLine, perfectRule, perfectState, speedRule, speedState } from "./attempt-text";
+import { OFFLINE_TAG, PRACTICE_HINT, SPEND_NOTICE, attemptsLine, attemptsShort, bonusShort, exhaustedLine, perfectRule, perfectState, speedRule, speedState } from "./attempt-text";
 
 type Props = { game: string; view: PlayStatusView; hasPractice: boolean };
 
-/** Attempts left and bonuses in play of one level, as the server reports them. Nothing without a limited session. */
+/**
+ * Attempts left and bonuses in play of one level, as the server reports them, folded into one line that opens
+ * on tap. Nothing without a limited session.
+ */
 export function PlayRules({ game, view, hasPractice }: Props) {
   const catalog = findGame(game);
   if (view.state === "none" || !catalog) return null;
@@ -16,8 +19,11 @@ export function PlayRules({ game, view, hasPractice }: Props) {
   const exhausted = left === 0;
   const lastOne = left === 1;
   return (
-    <div className="rules">
-      <div className="guidehead"><span>REGLAS DE LA PARTIDA</span>{view.state === "offline" && <span className="muted">{OFFLINE_TAG}</span>}</div>
+    <details className="rules" open={exhausted || undefined}>
+      <summary>
+        <span className="rulestitle">REGLAS DE LA PARTIDA{view.state === "offline" && <span className="muted"> · {OFFLINE_TAG}</span>}</span>
+        <span className="rulesbrief"><strong className={exhausted ? "bad" : lastOne ? "warn" : ""}>{attemptsShort(left, limit)}</strong> · {bonusShort(status)}</span>
+      </summary>
       <div className="lvpips" aria-hidden="true">
         {Array.from({ length: limit }, (_, index) => <i key={index} className={index < left ? (lastOne ? "mid" : "ok") : ""} />)}
       </div>
@@ -33,6 +39,6 @@ export function PlayRules({ game, view, hasPractice }: Props) {
         <li>{speedRule(catalog)} <em className={status.mine?.arrival ? "mine" : status.arrivalTaken >= ARRIVAL_BONUSES.length ? "out" : ""}>{speedState(status)}</em></li>
         <li>{perfectRule(catalog)} <em className={status.mine?.perfect ? "mine" : status.perfectBy ? "out" : ""}>{perfectState(status)}</em></li>
       </ul>
-    </div>
+    </details>
   );
 }

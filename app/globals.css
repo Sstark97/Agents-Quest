@@ -460,6 +460,13 @@ main:has(.tv) { max-width: 1280px; }
 .rules .guidehead { color: var(--ask); gap: 8px; flex-wrap: wrap; } .rules .guidehead + .lvpips, .rules .lvpips { margin-bottom: 10px; }
 .rules .guidehead:not(:first-child) { margin-top: 16px; }
 .rules .fb, .rules .muted { margin: 6px 0; overflow-wrap: anywhere; }
+.card > .rules:first-child { margin-top: 0; }
+.rules > summary { list-style: none; cursor: pointer; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 6px 12px; }
+.rules > summary::-webkit-details-marker { display: none; }
+.rules .rulestitle { font: 10px var(--px); color: var(--ask); } .rules .rulestitle::before { content: "+ "; } .rules[open] .rulestitle::before { content: "- "; }
+.rules .rulesbrief { color: var(--muted); overflow-wrap: anywhere; } .rules .rulesbrief strong { color: var(--ok); font-weight: 400; }
+.rules .rulesbrief strong.warn { color: var(--warn); } .rules .rulesbrief strong.bad { color: var(--bad); }
+.rules[open] > summary { margin-bottom: 14px; }
 .rules li { overflow-wrap: anywhere; } .rules li em { font-style: normal; color: var(--gold); display: block; }
 .rules li em.out { color: var(--muted); } .rules li em.mine { color: var(--ok); }
 .chip.tries { border-color: var(--ask); color: var(--ask); } .chip.tries.out { border-color: var(--bad); color: var(--bad); }

@@ -18,6 +18,20 @@ export function attemptsLine(used: number, limit: number): string {
   return left === LAST_ATTEMPT ? `${base} · ¡último intento!` : base;
 }
 
+/** Folded summary of the rules box: «Te quedan 2 de 2 intentos», «¡Último intento!» or «Sin intentos». */
+export function attemptsShort(left: number, limit: number): string {
+  if (left <= 0) return "Sin intentos";
+  return left === LAST_ATTEMPT ? "¡Último intento!" : `Te quedan ${left} de ${limit} intentos`;
+}
+
+/** Folded summary of the bonuses still in play: «3 plazas de rapidez · pleno libre». */
+export function bonusShort(status: GamePlayStatus): string {
+  const free = Math.max(0, ARRIVAL_BONUSES.length - status.arrivalTaken);
+  const speed = status.mine && status.mine.arrival > 0 ? "rapidez: ¡tuya!" : free === 0 ? "rapidez agotada" : `${free} ${plural(free, "plaza", "plazas")} de rapidez`;
+  const perfect = status.mine && status.mine.perfect > 0 ? "pleno: ¡tuyo!" : status.perfectBy ? "pleno conseguido" : "pleno libre";
+  return `${speed} · ${perfect}`;
+}
+
 export const exhaustedLine = (best: number | null) =>
   `Has agotado tus intentos en este nivel. Cuenta tu mejor puntuación: ${best === null ? "sin puntuación" : best}`;
 
