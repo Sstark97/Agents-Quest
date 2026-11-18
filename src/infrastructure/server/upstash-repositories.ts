@@ -66,6 +66,11 @@ export function createUpstashScoreRepository(redis: RedisCommand): ScoreReposito
       return value;
     },
     async attemptCount(code, team, game, kind) { return Number(await redis(["HGET", attemptsKey(code), attemptField(team, game, kind)])) || 0; },
+    async attemptCounts(code, team, games, kind) {
+      if (!games.length) return {};
+      const values = (await redis(["HMGET", attemptsKey(code), ...games.map((game) => attemptField(team, game, kind))])) as (string | null)[];
+      return Object.fromEntries(games.map((game, index) => [game, Number(values[index]) || 0]));
+    },
     async bestScores(code) { return (await numbers(scoresKey(code))).map(([field, score]) => parseScoreField(field, score)); },
     async avatars(code) { return Object.fromEntries(await numbers(avatarsKey(code))); },
     async counters(code) { return (await numbers(statsKey(code))).map(([field, count]) => parseCounterField(field, count)); },

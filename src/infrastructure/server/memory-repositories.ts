@@ -66,6 +66,7 @@ export function createMemoryScoreRepository(): ScoreRepository {
       return (attempts[field] = (attempts[field] ?? 0) + delta);
     },
     async attemptCount(code, team, game, kind) { return store.__attempts[code]?.[attemptField(team, game, kind)] ?? 0; },
+    async attemptCounts(code, team, games, kind) { return Object.fromEntries(games.map((game) => [game, store.__attempts[code]?.[attemptField(team, game, kind)] ?? 0])); },
     async bestScores(code) { return Object.entries(store.__scores[code] ?? {}).map(([field, score]) => parseScoreField(field, score)); },
     async avatars(code) { return store.__avatars[code] ?? {}; },
     async counters(code) { return Object.entries(store.__stats[code] ?? {}).map(([field, count]) => parseCounterField(field, count)); },

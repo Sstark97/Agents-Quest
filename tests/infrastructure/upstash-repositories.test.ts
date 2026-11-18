@@ -18,6 +18,7 @@ function fakeRedis(initial: Record<string, Record<string, string>> = {}) {
       case "HSET": for (let i = 0; i < args.length; i += 2) hash(key).set(String(args[i]), String(args[i + 1])); return args.length / 2;
       case "HSETNX": if (hash(key).has(String(args[0]))) return 0; hash(key).set(String(args[0]), String(args[1])); return 1;
       case "HGET": return hash(key).get(String(args[0])) ?? null;
+      case "HMGET": return args.map((field) => hash(key).get(String(field)) ?? null);
       case "HGETALL": return [...hash(key)].flat();
       case "HINCRBY": { const value = Number(hash(key).get(String(args[0])) ?? 0) + Number(args[1]); hash(key).set(String(args[0]), String(value)); return value; }
       case "INCR": { const value = (strings.get(String(key)) ?? 0) + 1; strings.set(String(key), value); return value; }
@@ -96,6 +97,18 @@ describe("upstash score repository", () => {
     assert.equal(hashes.has("aq:attempts:AAAAA"), false);
     assert.equal(await scores.attemptCount("AAAAA", "Bits", "nivel-1", "started"), 0);
     assert.equal(await scores.nextSequence("AAAAA"), 1);
+  });
+});
+
+describe("upstash attempt counts", () => {
+  it("reads the counters of several games with one read-only command", async () => {
+    const { redis, commands } = fakeRedis();
+    const scores = createUpstashScoreRepository(redis);
+    await scores.bumpAttempt("AAAAA", "Los|Bits", "nivel-2", "started", 1);
+    await scores.bumpAttempt("AAAAA", "Los|Bits", "nivel-2", "started", 1);
+    commands.length = 0;
+    assert.deepEqual(await scores.attemptCounts("AAAAA", "Los|Bits", ["nivel-1", "nivel-2"], "started"), { "nivel-1": 0, "nivel-2": 2 });
+    assert.deepEqual(commands.map((command) => command[0]), ["HMGET"]);
   });
 });
 
