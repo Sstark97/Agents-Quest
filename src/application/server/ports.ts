@@ -1,3 +1,4 @@
+import type { ArrivalEntry } from "../../domain/session/bonus";
 import type { ScoreEntry } from "../../domain/session/ranking";
 import type { ScoreSubmission } from "../../domain/session/score-submission";
 import type { SessionRecord } from "../../domain/session/session";
@@ -11,17 +12,33 @@ export interface SessionRepository {
   setClosed(code: string, closed: boolean): Promise<void>;
   /** Opens levels 1..levels (0 = none). */
   setUnlocked(code: string, levels: number): Promise<void>;
+  /** Changes the attempts per team and level. Attempts already spent are not touched. */
+  setAttemptLimit(code: string, limit: number): Promise<void>;
   delete(code: string): Promise<void>;
 }
 
+/** An attempt is "started" when the team opens the level and "scored" when its result reaches the ranking. */
+export type AttemptKind = "started" | "scored";
+
 /** Where the scores, avatars and play counters of a session live. */
 export interface ScoreRepository {
-  /** Keeps the best score of the team in the game, its avatar, and counts the play and its mistake labels. */
-  record(code: string, submission: ScoreSubmission): Promise<void>;
+  /**
+   * Keeps the best score of the team in the game, its avatar, and counts the play and its mistake labels.
+   * When the best score improves and a sequence is given, it also stamps that sequence as the "best" arrival.
+   */
+  record(code: string, submission: ScoreSubmission, sequence?: number): Promise<void>;
+  /** Next number of the session's arrival sequence: atomic and always growing (it is not a clock). */
+  nextSequence(code: string): Promise<number>;
+  /** Stamps the arrival of the team in the game unless it already has that mark: the first stamp is never overwritten. */
+  stampFirst(code: string, team: string, game: string, mark: "qualified" | "perfect", sequence: number): Promise<void>;
+  arrivals(code: string): Promise<ArrivalEntry[]>;
+  /** Adds delta to the attempt counter of the team in the game, atomically. Returns the new value. */
+  bumpAttempt(code: string, team: string, game: string, kind: AttemptKind, delta: 1 | -1): Promise<number>;
+  attemptCount(code: string, team: string, game: string, kind: AttemptKind): Promise<number>;
   bestScores(code: string): Promise<ScoreEntry[]>;
   avatars(code: string): Promise<Record<string, number>>;
   counters(code: string): Promise<PlayCounter[]>;
-  /** Removes every score, avatar and counter of the session. */
+  /** Removes every score, avatar, play counter, attempt counter and arrival stamp of the session. */
   clear(code: string): Promise<void>;
 }
 
