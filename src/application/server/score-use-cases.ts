@@ -1,7 +1,8 @@
 import { arrivalMarks } from "../../domain/session/bonus";
-import { findGame } from "../../domain/games/catalog";
+import { GAME_IDS, findGame } from "../../domain/games/catalog";
 import { buildRanking, type TeamRow } from "../../domain/session/ranking";
-import { parseScoreSubmission, parseTeamGame } from "../../domain/session/score-submission";
+import { playStatus, type PlayStatus } from "../../domain/session/play-status";
+import { parseScoreSubmission, parseTeam, parseTeamGame } from "../../domain/session/score-submission";
 import { isWithinLimit, normalizeSessionCode, toSessionInfo, type SessionInfo } from "../../domain/session/session";
 import { buildStats, type Stats } from "../../domain/session/stats";
 import type { ScoreRepository, SessionRepository } from "./ports";
@@ -11,11 +12,14 @@ export type SubmitScoreResult = { ok: true } | { ok: false; error: "session-not-
 export type StartAttemptResult =
   | { ok: true; attempt: number | null; limit: number | null }
   | { ok: false; error: "session-not-found" | "session-closed" | "invalid-data" | "attempts-exhausted" };
+/** status is null for sessions created before the attempt limit existed: there is nothing to show there. */
+export type PlayStatusResult = { ok: true; status: PlayStatus | null } | { ok: false; error: "session-not-found" | "invalid-data" };
 export type RankingResult = { ok: true; session: SessionInfo; teams: TeamRow[] } | { ok: false; error: "session-not-found" };
 export type StatsResult = { ok: true; stats: Stats } | { ok: false; error: "session-not-found" };
 
 type Dependencies = { sessions: SessionRepository; scores: ScoreRepository };
 type RawAttempt = { session?: unknown; team?: unknown; game?: unknown };
+type RawPlayStatus = { session?: unknown; team?: unknown };
 type RawSubmission = { session?: unknown; team?: unknown; game?: unknown; score?: unknown; avatar?: unknown; tags?: unknown };
 
 export function createScoreUseCases({ sessions, scores }: Dependencies) {
@@ -37,6 +41,18 @@ export function createScoreUseCases({ sessions, scores }: Dependencies) {
         return { ok: false, error: "attempts-exhausted" };
       }
       return { ok: true, attempt, limit: session.attemptLimit };
+    },
+
+    /** Read-only: attempts, best scores and bonuses of a team in every level. Spends nothing. */
+    async getPlayStatus(raw: RawPlayStatus | null): Promise<PlayStatusResult> {
+      const code = normalizeSessionCode(typeof raw?.session === "string" ? raw.session : "");
+      const session = await find(code);
+      if (!session) return { ok: false, error: "session-not-found" };
+      const team = parseTeam(raw?.team);
+      if (!team) return { ok: false, error: "invalid-data" };
+      if (session.attemptLimit === null) return { ok: true, status: null };
+      const [started, best, arrivals] = await Promise.all([scores.attemptCounts(code, team, GAME_IDS, "started"), scores.bestScores(code), scores.arrivals(code)]);
+      return { ok: true, status: playStatus({ team, limit: session.attemptLimit, started, best, arrivals }) };
     },
 
     /** A team finished a level: record its result in the session ranking. */

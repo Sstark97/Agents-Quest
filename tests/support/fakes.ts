@@ -21,7 +21,7 @@ export const reply = <T>(status: number, body: T | null = null): Reply<T> => ({ 
 /** Gateway whose calls fail as if there were no connection, unless overridden. */
 export function fakeGateway(overrides: Partial<SessionGateway> = {}): SessionGateway {
   const offline = () => Promise.reject(new Error("offline"));
-  return { findSession: offline, createSession: offline, runFacilitatorAction: offline, startAttempt: offline, submitScore: offline, getRanking: offline, getStats: offline, ...overrides };
+  return { findSession: offline, createSession: offline, runFacilitatorAction: offline, startAttempt: offline, getPlayStatus: offline, submitScore: offline, getRanking: offline, getStats: offline, ...overrides };
 }
 
 export function fakeSessionRepository(): SessionRepository & { records: Record<string, SessionRecord> } {
@@ -79,6 +79,7 @@ export function fakeScoreRepository(): ScoreRepository & { cleared: string[] } {
       return (table[key] = (table[key] ?? 0) + delta);
     },
     async attemptCount(code, team, game, kind) { return attempts[code]?.[attemptKey(team, game, kind)] ?? 0; },
+    async attemptCounts(code, team, games, kind) { return Object.fromEntries(games.map((game) => [game, attempts[code]?.[attemptKey(team, game, kind)] ?? 0])); },
     async bestScores(code) { return best[code] ?? []; },
     async avatars(code) { return avatars[code] ?? {}; },
     async counters(code) { return counters[code] ?? []; },

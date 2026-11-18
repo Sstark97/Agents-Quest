@@ -310,4 +310,46 @@ describe("score use cases", () => {
       assert.equal((await rowsOf(scoreUseCases)).B.bonus.arrival, 45);
     });
   });
+
+  describe("play status", () => {
+    const status = { session: "aaaaa", team: "Bits" };
+
+    it("answers not found for an unknown session and invalid data for a bad team", async () => {
+      const { sessionUseCases, scoreUseCases } = setup();
+      assert.deepEqual(await scoreUseCases.getPlayStatus(status), { ok: false, error: "session-not-found" });
+      assert.deepEqual(await scoreUseCases.getPlayStatus(null), { ok: false, error: "session-not-found" });
+      await sessionUseCases.createSession("Taller");
+      assert.deepEqual(await scoreUseCases.getPlayStatus({ ...status, team: "  " }), { ok: false, error: "invalid-data" });
+      assert.deepEqual(await scoreUseCases.getPlayStatus({ ...status, team: "a::b" }), { ok: false, error: "invalid-data" });
+    });
+
+    it("has no status in a session created before the attempt limit", async () => {
+      const { sessionUseCases, scoreUseCases, sessions } = setup();
+      await sessionUseCases.createSession("Taller");
+      sessions.records.AAAAA.attemptLimit = null;
+      assert.deepEqual(await scoreUseCases.getPlayStatus(status), { ok: true, status: null });
+    });
+
+    it("shows attempts, best score and bonus after playing, and is still readable when the session is closed", async () => {
+      const { sessionUseCases, scoreUseCases, sessions } = setup();
+      await sessionUseCases.createSession("Taller");
+      await scoreUseCases.startAttempt(attempt);
+      await scoreUseCases.submitScore({ ...submission, score: 300 });
+      await scoreUseCases.startAttempt(attempt);
+      sessions.records.AAAAA.closed = true;
+      const result = await scoreUseCases.getPlayStatus(status);
+      assert.ok(result.ok && result.status);
+      assert.equal(result.status.limit, 2);
+      assert.deepEqual(result.status.games["nivel-1"], { used: 2, left: 0, best: 300, arrivalTaken: 1, perfectBy: "Bits", mine: { place: 1, arrival: 45, perfect: 30 } });
+      assert.deepEqual(result.status.games["nivel-2"], { used: 0, left: 2, best: null, arrivalTaken: 0, perfectBy: null, mine: null });
+    });
+
+    it("writes nothing: reading twice leaves the next attempt as number 1", async () => {
+      const { sessionUseCases, scoreUseCases } = setup();
+      await sessionUseCases.createSession("Taller");
+      await scoreUseCases.getPlayStatus(status);
+      await scoreUseCases.getPlayStatus(status);
+      assert.deepEqual(await scoreUseCases.startAttempt(attempt), { ok: true, attempt: 1, limit: 2 });
+    });
+  });
 });

@@ -35,6 +35,8 @@ export interface ScoreRepository {
   /** Adds delta to the attempt counter of the team in the game, atomically. Returns the new value. */
   bumpAttempt(code: string, team: string, game: string, kind: AttemptKind, delta: 1 | -1): Promise<number>;
   attemptCount(code: string, team: string, game: string, kind: AttemptKind): Promise<number>;
+  /** Read-only: the attempt counter of the team in each of the games (0 when there is none). */
+  attemptCounts(code: string, team: string, games: string[], kind: AttemptKind): Promise<Record<string, number>>;
   bestScores(code: string): Promise<ScoreEntry[]>;
   avatars(code: string): Promise<Record<string, number>>;
   counters(code: string): Promise<PlayCounter[]>;
