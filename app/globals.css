@@ -607,3 +607,11 @@ main:has(.tv) { max-width: 1280px; }
   main { padding-bottom: 32px; }
   .sitefoot { padding-bottom: 56px; }
 }
+
+/* Optional email step */
+.consent { display: flex; gap: 10px; align-items: flex-start; margin: 10px 4px; font: 20px/1.25 var(--vt); color: var(--ink); cursor: pointer; }
+.consent input { width: 22px; height: 22px; flex: none; margin: 2px 0; accent-color: var(--gold); box-shadow: none; border: 0; padding: 0; }
+.linkbtn { background: none; border: 0; padding: 0; color: var(--ask); text-decoration: underline; font: inherit; cursor: pointer; }
+.privacy ul { margin: 8px 0; padding-left: 20px; font: 20px/1.3 var(--vt); }
+.privacy li { margin: 6px 0; }
+.privacy p { font: 20px/1.3 var(--vt); }

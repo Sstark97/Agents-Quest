@@ -7,8 +7,10 @@ import type { ScoreBoard } from "@/src/domain/games/progress";
 import { DEFAULT_ATTEMPT_LIMIT, SESSION_NAME_MAX } from "@/src/domain/session/session";
 import type { Stats } from "@/src/domain/session/stats";
 import { useServices } from "@/src/ui/services-context";
+import { downloadText } from "@/src/ui/components/download-text";
 import { AttemptControl, attemptsHelp } from "./AttemptControl";
 import { ClassStats } from "./ClassStats";
+import { EmailControl } from "./EmailControl";
 import { LevelControl } from "./LevelControl";
 
 const REFRESH_MS = 8000;
@@ -25,6 +27,8 @@ export function FacilitatorScreen() {
   const [origin, setOrigin] = useState("");
   const [message, setMessage] = useState("");
   const [newAttempts, setNewAttempts] = useState(DEFAULT_ATTEMPT_LIMIT);
+  const [newCollectEmails, setNewCollectEmails] = useState(false);
+  const [emailCount, setEmailCount] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
   const [teams, setTeams] = useState<{ games: ScoreBoard }[]>([]);
@@ -39,22 +43,23 @@ export function FacilitatorScreen() {
   }, [selected, facilitator]);
 
   useEffect(() => {
-    if (!selected || status === "gone") { setStats(null); return; }
+    if (!selected || status === "gone") { setStats(null); setEmailCount(null); return; }
     let alive = true;
     const load = () => {
       leaderboard.stats(selected.code).then((reply) => { if (alive && (reply.body || !reply.ok)) setStats(reply.body); }).catch(() => {});
       leaderboard.ranking(selected.code).then((reply) => alive && reply.body && setTeams(reply.body.teams)).catch(() => {});
+      facilitator.emailCount(selected).then((count) => { if (alive && count !== null) setEmailCount(count); });
     };
     load();
     const timer = setInterval(load, REFRESH_MS);
     return () => { alive = false; clearInterval(timer); };
-  }, [selected, status, leaderboard]);
+  }, [selected, status, leaderboard, facilitator]);
 
   const create = async () => {
     if (!name.trim()) return;
     setBusy(true); setMessage("");
-    const outcome = await facilitator.createSession(name, newAttempts);
-    if (outcome.ok) { reloadSessions(); setSelected(outcome.session); setName(""); }
+    const outcome = await facilitator.createSession(name, newAttempts, newCollectEmails);
+    if (outcome.ok) { reloadSessions(); setSelected(outcome.session); setName(""); setNewCollectEmails(false); }
     else setMessage(outcome.reason === "rejected" ? "No se pudo crear la sesión." : "No se pudo conectar.");
     setBusy(false);
   };
@@ -76,10 +81,23 @@ export function FacilitatorScreen() {
     else setMessage("No se pudo cambiar el límite.");
   };
 
+  const setCollectEmails = async (enabled: boolean) => {
+    if (!selected) return;
+    if (await facilitator.act(selected, "emails", { enabled })) setStatus((current) => (current && current !== "gone" ? { ...current, collectEmails: enabled } : current));
+    else setMessage("No se pudo cambiar la opción de correos.");
+  };
+
+  const downloadEmails = async () => {
+    if (!selected) return;
+    const outcome = await facilitator.exportEmails(selected);
+    if (outcome.ok) downloadText(outcome.fileName, outcome.csv);
+    else setMessage(outcome.reason === "rejected" ? "No se pudo descargar los correos." : "No se pudo conectar.");
+  };
+
   const act = async (action: SessionAction) => {
     if (!selected) return;
     if (action === "reset" && !window.confirm("¿Borrar todas las puntuaciones de esta sesión? No se puede deshacer.")) return;
-    if (action === "delete" && !window.confirm(`¿Eliminar la sesión «${selected.name}» (${selected.code}) y todas sus puntuaciones? No se puede deshacer.`)) return;
+    if (action === "delete" && !window.confirm(`¿Eliminar la sesión «${selected.name}» (${selected.code}) y todas sus puntuaciones y todos sus correos? No se puede deshacer.`)) return;
     const done = await facilitator.act(selected, action);
     if (!done) { setMessage("No se pudo completar la acción."); return; }
     if (action === "delete") { forget(selected.code); setMessage("Sesión eliminada."); return; }
@@ -99,6 +117,10 @@ export function FacilitatorScreen() {
         <div className="muted">INTENTOS POR NIVEL</div>
         <AttemptControl value={newAttempts} onChange={setNewAttempts} />
         <p className="muted">{attemptsHelp(newAttempts)}</p>
+        <label className="consent">
+          <input type="checkbox" checked={newCollectEmails} onChange={(event) => setNewCollectEmails(event.target.checked)} />
+          <span>Pedir correo al unirse (opcional para los equipos)</span>
+        </label>
         <p><button className="btn start" onClick={create} disabled={busy || !name.trim()}>CREAR SESION</button></p>
         {message && <p className="muted">{message}</p>}
       </div>
@@ -131,6 +153,7 @@ export function FacilitatorScreen() {
                     : <><p className="muted">{attemptsHelp(status.attemptLimit)}</p><AttemptControl value={status.attemptLimit} onChange={setAttempts} /></>}
                 </div>
               )}
+              {status && status !== "gone" && <EmailControl enabled={status.collectEmails} count={emailCount} onToggle={setCollectEmails} onDownload={downloadEmails} />}
               <div className="row">
                 {status === "gone" ? <button className="btn ghost" onClick={() => forget(selected.code)}>QUITAR DE LA LISTA</button> : <>
                 {status?.closed ? <button className="btn" onClick={() => act("open")}>REABRIR</button> : <button className="btn ghost" onClick={() => act("close")}>CERRAR SESION</button>}

@@ -1,15 +1,21 @@
 import type { JoinedSession } from "@/src/application/client/session-membership";
 import { TEAM_NAME_MAX } from "@/src/domain/session/score-submission";
 import { AvatarPicker } from "@/src/ui/components/Avatar";
+import { EmailForm } from "./EmailForm";
 
 const CODE_INPUT_MAX = 8;
 
 type ProfileProps = { team: string; avatar: number; onAvatarChange: (avatar: number) => void };
 
-type JoinedProps = ProfileProps & { session: JoinedSession; onTeamChange: (team: string) => void; onLeave: () => void };
+type EmailHandlers = { busy: boolean; onSubmit: (email: string, consent: boolean) => void; onSkip: () => void; notice: { tone: "good" | "warn"; text: string } | null };
+
+type JoinedProps = ProfileProps & {
+  session: JoinedSession; onTeamChange: (team: string) => void; onLeave: () => void;
+  askEmail: boolean; emailNotice: { tone: "good" | "warn"; text: string } | null; email: EmailHandlers;
+};
 
 /** The session the device has joined, with the team name and robot still editable. */
-export function JoinedSessionCard({ session, team, avatar, onTeamChange, onAvatarChange, onLeave }: JoinedProps) {
+export function JoinedSessionCard({ session, team, avatar, onTeamChange, onAvatarChange, onLeave, askEmail, emailNotice, email }: JoinedProps) {
   return (
     <div className="card">
       <div className="muted">SESIÓN</div>
@@ -18,6 +24,8 @@ export function JoinedSessionCard({ session, team, avatar, onTeamChange, onAvata
       <input placeholder="Nombre del equipo" value={team} maxLength={TEAM_NAME_MAX} onChange={(event) => onTeamChange(event.target.value)} />
       <div className="muted" style={{ marginTop: 8 }}>Tu robot</div>
       <AvatarPicker value={avatar} onChange={onAvatarChange} />
+      {emailNotice && !askEmail && <p className={`fb ${emailNotice.tone}`} role="status">{emailNotice.text}</p>}
+      {askEmail && <EmailForm title="¿Quieres dejar tu correo? (opcional)" submitLabel="GUARDAR CORREO" skipLabel="Ahora no" {...email} />}
       <p><button className="btn ghost" onClick={onLeave}>SALIR DE LA SESION</button></p>
       <p className="muted">Tu progreso (niveles superados) pertenece a esta sesión: si sales, se borra.</p>
     </div>
@@ -27,10 +35,19 @@ export function JoinedSessionCard({ session, team, avatar, onTeamChange, onAvata
 type JoinProps = ProfileProps & {
   code: string; error: string; busy: boolean;
   onCodeChange: (code: string) => void; onTeamChange: (team: string) => void; onJoin: () => void;
+  emailStep: boolean; email: EmailHandlers;
 };
 
 /** Form to join a session with the facilitator's code. */
-export function JoinSessionCard({ code, team, avatar, error, busy, onCodeChange, onTeamChange, onAvatarChange, onJoin }: JoinProps) {
+export function JoinSessionCard({ code, team, avatar, error, busy, onCodeChange, onTeamChange, onAvatarChange, onJoin, emailStep, email }: JoinProps) {
+  if (emailStep) {
+    return (
+      <div className="card">
+        <h2>UNETE A UNA SESION</h2>
+        <EmailForm submitLabel="UNIRME CON CORREO" skipLabel="UNIRME SIN CORREO" autoFocus {...email} />
+      </div>
+    );
+  }
   return (
     <div className="card">
       <h2>UNETE A UNA SESION</h2>
