@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { createClientServices } from "../../src/application/client/services";
 import type { SessionGateway } from "../../src/application/client/ports";
+import type { SessionInfo } from "../../src/domain/session/session";
 import { fakeGateway, fakeStore, reply } from "../support/fakes";
 
-const openSession = { code: "K7M2Q", name: "Taller", closed: false, unlocked: 2, attemptLimit: null };
+const openSession = { code: "K7M2Q", name: "Taller", closed: false, unlocked: 2, attemptLimit: null, collectEmails: false };
 const joined = { "taller.session": JSON.stringify({ code: "K7M2Q", name: "Taller" }), "taller.team": "Bits", "taller.avatar": "3" };
 const setup = (gateway: Partial<SessionGateway> = {}, stored: Record<string, string> = {}) => {
   const store = fakeStore(stored);
@@ -25,7 +26,7 @@ describe("player profile", () => {
 describe("session membership", () => {
   it("joins an open session and remembers it", async () => {
     const { services, store } = setup({ findSession: async () => reply(200, openSession) });
-    assert.deepEqual(await services.membership.join(" k7m2q ", "Bits"), { ok: true, session: { code: "K7M2Q", name: "Taller" } });
+    assert.deepEqual(await services.membership.join(" k7m2q ", "Bits"), { ok: true, session: { code: "K7M2Q", name: "Taller" }, collectEmails: false });
     assert.deepEqual(services.membership.current(), { code: "K7M2Q", name: "Taller" });
     assert.equal(store.data["taller.team"], "Bits");
   });
@@ -38,11 +39,28 @@ describe("session membership", () => {
     assert.deepEqual(await setup({ findSession: async () => reply(200) }).services.membership.join("X", "Bits"), { ok: false, reason: "offline" });
   });
 
+  it("tells whether the session asks for an email, and only a real true counts", async () => {
+    const join = (body: object) => setup({ findSession: async () => reply(200, body as SessionInfo) }).services.membership.join("K7M2Q", "Bits");
+    assert.deepEqual(await join({ ...openSession, collectEmails: true }), { ok: true, session: { code: "K7M2Q", name: "Taller" }, collectEmails: true });
+    for (const collectEmails of ["true", 1, undefined]) {
+      const result = await join({ ...openSession, collectEmails });
+      assert.ok(result.ok && result.collectEmails === false);
+    }
+    const legacy = await join({ code: "K7M2Q", name: "Taller", closed: false, unlocked: 0, attemptLimit: null });
+    assert.ok(legacy.ok && legacy.collectEmails === false);
+  });
+
   it("erases the local scores of the session when leaving", () => {
     const { services, store } = setup({}, { ...joined, "taller.scores.K7M2Q": "{\"nivel-1\":200}" });
     services.membership.leave();
     assert.equal(services.membership.current(), null);
     assert.equal(store.data["taller.scores.K7M2Q"], undefined);
+  });
+
+  it("forgets that the email was asked when leaving, so the next team on the device is asked", () => {
+    const { services, store } = setup({}, { ...joined, "taller.emailAsked.K7M2Q": "1" });
+    services.membership.leave();
+    assert.equal(store.data["taller.emailAsked.K7M2Q"], undefined);
   });
 });
 
@@ -282,7 +300,7 @@ describe("facilitator", () => {
     });
     await services.facilitator.createSession("One", 3);
     await services.facilitator.act({ code: "S1", name: "One", key: "k" }, "attempts", { attempts: 4 });
-    assert.deepEqual(created, [["One", 3]]);
+    assert.deepEqual(created, [["One", 3, undefined]]);
     assert.deepEqual(calls, [["S1", "k", "attempts", { attempts: 4 }]]);
   });
 });
@@ -346,5 +364,126 @@ describe("play status reader", () => {
     assert.deepEqual(await services.playStatus.read("Bits"), { state: "offline", status });
     answer = reply(200, null as never);
     assert.deepEqual(await services.playStatus.read("Bits"), { state: "offline", status });
+  });
+});
+
+describe("email collector", () => {
+  const EMAIL = "x@y.es";
+  const withEmails = { ...openSession, collectEmails: true };
+  const submitStatus = (status: number, body: unknown = {}) => setup({ submitEmail: async () => reply(status, status < 300 ? body : null) }, joined);
+
+  it("checks the answer with the shared domain rule", () => {
+    const { services } = setup();
+    assert.equal(services.emails.check("", true), "invalid-email");
+    assert.equal(services.emails.check(EMAIL, false), "missing-consent");
+    assert.equal(services.emails.check(EMAIL, true), "ok");
+  });
+
+  it("needs an answer only with the flag on, a session and nothing answered yet", () => {
+    assert.equal(setup({}, joined).services.emails.needsAnswer(true), true);
+    assert.equal(setup({}, joined).services.emails.needsAnswer(false), false);
+    assert.equal(setup().services.emails.needsAnswer(true), false);
+    assert.equal(setup({}, { ...joined, "taller.emailAsked.K7M2Q": "1" }).services.emails.needsAnswer(true), false);
+  });
+
+  it("sends the answer with the session and maps every status", async () => {
+    const sent: unknown[] = [];
+    const { services } = setup({ submitEmail: async (payload) => { sent.push(payload); return reply(200, { ok: true }); } }, joined);
+    assert.equal(await services.emails.submit("Bits", EMAIL, true), "ok");
+    assert.deepEqual(sent, [{ session: "K7M2Q", team: "Bits", email: EMAIL, consent: true }]);
+    const expected: [number, string][] = [[400, "invalid"], [403, "closed"], [404, "gone"], [409, "disabled"], [500, "offline"], [503, "offline"], [418, "offline"]];
+    for (const [status, result] of expected) assert.equal(await submitStatus(status).services.emails.submit("Bits", EMAIL, true), result, String(status));
+    assert.equal(await submitStatus(200, null).services.emails.submit("Bits", EMAIL, true), "offline");
+  });
+
+  it("does not call the server for an invalid answer or without a session", async () => {
+    let calls = 0;
+    const gateway = { submitEmail: async () => { calls++; return reply(200, {}); } };
+    assert.equal(await setup(gateway, joined).services.emails.submit("Bits", "nope", true), "invalid");
+    assert.equal(await setup(gateway, joined).services.emails.submit("Bits", EMAIL, false), "invalid");
+    assert.equal(await setup(gateway).services.emails.submit("Bits", EMAIL, true), "nosession");
+    assert.equal(calls, 0);
+  });
+
+  it("keeps nothing of the email on the device when offline, and does not mark the question as answered", async () => {
+    const { services, store } = setup({}, joined);
+    assert.equal(await services.emails.submit("Bits", EMAIL, true), "offline");
+    assert.ok(!JSON.stringify(store.data).includes(EMAIL));
+    assert.ok(!JSON.stringify(store.data).includes("y.es"));
+    assert.equal(store.data["taller.emailAsked.K7M2Q"], undefined);
+    assert.equal(store.data["taller.queue"], undefined);
+  });
+
+  it("marks the question as answered when the email is saved or the team says not now, without storing the email", async () => {
+    const saved = submitStatus(200, { ok: true });
+    assert.equal(await saved.services.emails.submit("Bits", EMAIL, true), "ok");
+    assert.equal(saved.store.data["taller.emailAsked.K7M2Q"], "1");
+    assert.ok(!JSON.stringify(saved.store.data).includes(EMAIL));
+    assert.equal(saved.services.emails.needsAnswer(true), false);
+    const dismissed = setup({}, joined);
+    dismissed.services.emails.dismiss();
+    assert.equal(dismissed.store.data["taller.emailAsked.K7M2Q"], "1");
+    const nobody = setup();
+    nobody.services.emails.dismiss();
+    assert.deepEqual(nobody.store.data, {});
+  });
+
+  it("asks a team already in the session once, only while the session is open and collecting", async () => {
+    const ask = (body: object | null, stored: Record<string, string> = joined) => setup({ findSession: async () => (body ? reply(200, body as SessionInfo) : reply(404)) }, stored).services.emails.shouldAsk();
+    assert.equal(await ask(withEmails), true);
+    assert.equal(await ask(openSession), false);
+    assert.equal(await ask({ ...withEmails, closed: true }), false);
+    assert.equal(await ask(null), false);
+    assert.equal(await ask(withEmails, {}), false);
+    assert.equal(await ask(withEmails, { ...joined, "taller.emailAsked.K7M2Q": "1" }), false);
+    assert.equal(await setup({}, joined).services.emails.shouldAsk(), false);
+  });
+
+  it("does not ask the server when the question was already answered", async () => {
+    let calls = 0;
+    const { services } = setup({ findSession: async () => { calls++; return reply(200, withEmails); } }, { ...joined, "taller.emailAsked.K7M2Q": "1" });
+    assert.equal(await services.emails.shouldAsk(), false);
+    assert.equal(calls, 0);
+  });
+});
+
+describe("facilitator emails", () => {
+  const session = { code: "S1", name: "One", key: "k" };
+
+  it("passes the email option when creating a session and when switching it", async () => {
+    const created: unknown[][] = [];
+    const calls: unknown[][] = [];
+    const { services } = setup({
+      createSession: async (...args) => { created.push(args); return reply(200, { code: "S1", name: "One", adminKey: "k" }); },
+      runFacilitatorAction: async (...args) => { calls.push(args); return reply(200, {}); },
+    });
+    await services.facilitator.createSession("One", 2, true);
+    await services.facilitator.act(session, "emails", { enabled: false });
+    assert.deepEqual(created, [["One", 2, true]]);
+    assert.deepEqual(calls, [["S1", "k", "emails", { enabled: false }]]);
+  });
+
+  it("reads the email option of a session in its status", async () => {
+    const status = await setup({ findSession: async () => reply(200, { ...openSession, collectEmails: true }) }).services.facilitator.status("S1");
+    assert.ok(typeof status === "object" && status !== null && status.collectEmails);
+  });
+
+  it("counts the emails with the key, and says null when it cannot know", async () => {
+    const calls: unknown[][] = [];
+    const ok = setup({ getEmailCount: async (...args) => { calls.push(args); return reply(200, { count: 3 }); } });
+    assert.equal(await ok.services.facilitator.emailCount(session), 3);
+    assert.deepEqual(calls, [["S1", "k"]]);
+    assert.equal(await setup({ getEmailCount: async () => reply(403) }).services.facilitator.emailCount(session), null);
+    assert.equal(await setup({ getEmailCount: async () => reply(200) }).services.facilitator.emailCount(session), null);
+    assert.equal(await setup().services.facilitator.emailCount(session), null);
+  });
+
+  it("exports the CSV and tells rejected from offline, keeping nothing on the device", async () => {
+    const { services, store } = setup({ exportEmails: async () => reply(200, { fileName: "correos-S1.csv", csv: "a,b\r\n" }) });
+    assert.deepEqual(await services.facilitator.exportEmails(session), { ok: true, fileName: "correos-S1.csv", csv: "a,b\r\n" });
+    assert.deepEqual(store.data, {});
+    assert.deepEqual(await setup({ exportEmails: async () => reply(403) }).services.facilitator.exportEmails(session), { ok: false, reason: "rejected" });
+    assert.deepEqual(await setup({ exportEmails: async () => reply(200) }).services.facilitator.exportEmails(session), { ok: false, reason: "offline" });
+    assert.deepEqual(await setup().services.facilitator.exportEmails(session), { ok: false, reason: "offline" });
   });
 });

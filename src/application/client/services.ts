@@ -1,3 +1,4 @@
+import { createEmailCollector } from "./email-collector";
 import { createFacilitator } from "./facilitator";
 import { createLeaderboard } from "./leaderboard";
 import { createLevelAccess } from "./level-access";
@@ -18,6 +19,7 @@ export function createClientServices(store: KeyValueStore, gateway: SessionGatew
     progress: createLocalProgress(store, membership),
     scores: createScoreSubmitter(store, gateway, membership, profile),
     levelAccess: createLevelAccess(store, gateway),
+    emails: createEmailCollector(store, gateway, membership),
     facilitator: createFacilitator(store, gateway),
     playStatus: createPlayStatusReader(gateway, membership),
     leaderboard: createLeaderboard(gateway),

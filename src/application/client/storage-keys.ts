@@ -13,6 +13,8 @@ export const STORAGE_KEYS = {
   medals: "taller.medals",
   plays: "taller.plays",
   unlockedLevels: "taller.unlocked",
+  /** "1" when the team already answered the email step of the session. The email itself is never stored on the device. */
+  emailAsked: "taller.emailAsked",
 } as const;
 
 /** Progress is per session: every session code has its own entries ("_" = no session). */

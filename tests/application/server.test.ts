@@ -1,16 +1,20 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { createEmailUseCases } from "../../src/application/server/email-use-cases";
 import { createScoreUseCases } from "../../src/application/server/score-use-cases";
 import { createSessionUseCases } from "../../src/application/server/session-use-cases";
-import { fakeRandom, fakeScoreRepository, fakeSessionRepository } from "../support/fakes";
+import { fakeEmailRepository, fakeRandom, fakeScoreRepository, fakeSessionRepository } from "../support/fakes";
 
 function setup(...randomSequences: number[][]) {
   const sessions = fakeSessionRepository();
   const scores = fakeScoreRepository();
+  const emails = fakeEmailRepository();
+  const clock = { now: new Date("2026-11-22T10:00:00.000Z") };
   return {
-    sessions, scores,
-    sessionUseCases: createSessionUseCases({ sessions, scores, random: fakeRandom(...randomSequences) }),
+    sessions, scores, emails, clock,
+    sessionUseCases: createSessionUseCases({ sessions, scores, emails, random: fakeRandom(...randomSequences) }),
     scoreUseCases: createScoreUseCases({ sessions, scores }),
+    emailUseCases: createEmailUseCases({ sessions, emails, now: () => clock.now }),
   };
 }
 
@@ -18,7 +22,7 @@ describe("session use cases", () => {
   it("creates a session with a code for the teams and a key for the facilitator", async () => {
     const { sessionUseCases, sessions } = setup();
     assert.deepEqual(await sessionUseCases.createSession("  Taller  "), { ok: true, code: "AAAAA", adminKey: "ab".repeat(12), name: "Taller" });
-    assert.deepEqual(sessions.records.AAAAA, { name: "Taller", closed: false, adminKey: "ab".repeat(12), unlocked: 0, attemptLimit: 2 });
+    assert.deepEqual(sessions.records.AAAAA, { name: "Taller", closed: false, adminKey: "ab".repeat(12), unlocked: 0, attemptLimit: 2, collectEmails: false });
     assert.deepEqual(await sessionUseCases.createSession("   "), { ok: false, error: "missing-name" });
   });
 
@@ -39,7 +43,7 @@ describe("session use cases", () => {
   it("never reveals the facilitator key", async () => {
     const { sessionUseCases } = setup();
     await sessionUseCases.createSession("Taller");
-    assert.deepEqual(await sessionUseCases.findSession(" aaaaa "), { ok: true, session: { code: "AAAAA", name: "Taller", closed: false, unlocked: 0, attemptLimit: 2 } });
+    assert.deepEqual(await sessionUseCases.findSession(" aaaaa "), { ok: true, session: { code: "AAAAA", name: "Taller", closed: false, unlocked: 0, attemptLimit: 2, collectEmails: false } });
     assert.deepEqual(await sessionUseCases.findSession("ZZZZZ"), { ok: false, error: "session-not-found" });
   });
 
@@ -351,5 +355,122 @@ describe("score use cases", () => {
       await scoreUseCases.getPlayStatus(status);
       assert.deepEqual(await scoreUseCases.startAttempt(attempt), { ok: true, attempt: 1, limit: 2 });
     });
+  });
+});
+
+describe("email use cases", () => {
+  const EMAIL = "x@y.es";
+  const answer = { session: "aaaaa", team: "Bits", email: EMAIL, consent: true };
+
+  async function emailSession(collect: unknown = true) {
+    const context = setup();
+    const created = await context.sessionUseCases.createSession("Taller", undefined, collect);
+    assert.ok(created.ok);
+    return { ...context, adminKey: created.adminKey };
+  }
+
+  it("creates sessions without email by default and with it only for a real true", async () => {
+    const { sessionUseCases, sessions } = setup();
+    await sessionUseCases.createSession("Uno");
+    assert.equal(sessions.records.AAAAA.collectEmails, false);
+    for (const value of ["true", 1, null]) {
+      const context = setup();
+      await context.sessionUseCases.createSession("Dos", undefined, value);
+      assert.equal(context.sessions.records.AAAAA.collectEmails, false);
+    }
+    const { sessionUseCases: enabled, sessions: enabledSessions } = setup();
+    assert.deepEqual(await enabled.createSession("Tres", undefined, true), { ok: true, code: "AAAAA", adminKey: "ab".repeat(12), name: "Tres" });
+    assert.equal(enabledSessions.records.AAAAA.collectEmails, true);
+    const found = await enabled.findSession("AAAAA");
+    assert.ok(found.ok && found.session.collectEmails);
+  });
+
+  it("lets the facilitator switch the email step with the key and a boolean", async () => {
+    const { sessionUseCases, sessions, adminKey } = await emailSession(false);
+    assert.deepEqual(await sessionUseCases.runFacilitatorAction("AAAAA", { key: "wrong", action: "emails", enabled: true }), { ok: false, error: "invalid-key" });
+    assert.equal(sessions.records.AAAAA.collectEmails, false);
+    for (const enabled of ["true", 1, undefined, null]) assert.deepEqual(await sessionUseCases.runFacilitatorAction("AAAAA", { key: adminKey, action: "emails", enabled }), { ok: false, error: "invalid-data" });
+    assert.deepEqual(await sessionUseCases.runFacilitatorAction("AAAAA", { key: adminKey, action: "emails", enabled: true }), { ok: true });
+    assert.equal(sessions.records.AAAAA.collectEmails, true);
+    await sessionUseCases.runFacilitatorAction("AAAAA", { key: adminKey, action: "emails", enabled: false });
+    assert.equal(sessions.records.AAAAA.collectEmails, false);
+  });
+
+  it("answers every submit error in order: session, closed, disabled, then the data", async () => {
+    const { emailUseCases, sessionUseCases, sessions, emails, adminKey } = await emailSession(false);
+    assert.deepEqual(await emailUseCases.submitEmail({ ...answer, session: "ZZZZZ" }), { ok: false, error: "session-not-found" });
+    assert.deepEqual(await emailUseCases.submitEmail(null), { ok: false, error: "session-not-found" });
+    assert.deepEqual(await emailUseCases.submitEmail(answer), { ok: false, error: "emails-disabled" });
+    await sessionUseCases.runFacilitatorAction("AAAAA", { key: adminKey, action: "emails", enabled: true });
+    assert.deepEqual(await emailUseCases.submitEmail({ ...answer, team: "a::b" }), { ok: false, error: "invalid-data" });
+    assert.deepEqual(await emailUseCases.submitEmail({ ...answer, email: "nope" }), { ok: false, error: "invalid-email" });
+    assert.deepEqual(await emailUseCases.submitEmail({ ...answer, consent: "true" }), { ok: false, error: "missing-consent" });
+    sessions.records.AAAAA.closed = true;
+    assert.deepEqual(await emailUseCases.submitEmail(answer), { ok: false, error: "session-closed" });
+    assert.deepEqual(emails.saved, {});
+  });
+
+  it("keeps the last email of a team, stamped with the server time and the text version", async () => {
+    const { emailUseCases, emails, clock } = await emailSession();
+    assert.deepEqual(await emailUseCases.submitEmail(answer), { ok: true });
+    clock.now = new Date("2026-11-22T11:30:00.000Z");
+    assert.deepEqual(await emailUseCases.submitEmail({ ...answer, email: "Otro@Y.ES" }), { ok: true });
+    assert.deepEqual(await emailUseCases.submitEmail({ ...answer, team: "Bytes" }), { ok: true });
+    assert.deepEqual(emails.saved.AAAAA.map(({ team, email, consentedAt }) => ({ team, email, consentedAt })), [
+      { team: "Bits", email: "Otro@y.es", consentedAt: "2026-11-22T11:30:00.000Z" },
+      { team: "Bytes", email: EMAIL, consentedAt: "2026-11-22T11:30:00.000Z" },
+    ]);
+    assert.equal(emails.saved.AAAAA[0].version, "2026-11-v1");
+  });
+
+  it("keeps the emails when the scores are reset and drops them with the session", async () => {
+    const { emailUseCases, sessionUseCases, sessions, emails, scores, adminKey } = await emailSession();
+    await emailUseCases.submitEmail(answer);
+    await sessionUseCases.runFacilitatorAction("AAAAA", { key: adminKey, action: "reset" });
+    assert.equal(await emails.count("AAAAA"), 1);
+    assert.deepEqual(emails.cleared, []);
+    await sessionUseCases.runFacilitatorAction("AAAAA", { key: adminKey, action: "delete" });
+    assert.deepEqual(emails.cleared, ["AAAAA"]);
+    assert.deepEqual(scores.cleared, ["AAAAA", "AAAAA"]);
+    assert.equal(sessions.records.AAAAA, undefined);
+  });
+
+  it("counts and exports only with the facilitator key, also when the step is off", async () => {
+    const { emailUseCases, sessionUseCases, adminKey } = await emailSession();
+    await emailUseCases.submitEmail(answer);
+    await sessionUseCases.runFacilitatorAction("AAAAA", { key: adminKey, action: "emails", enabled: false });
+    assert.deepEqual(await emailUseCases.getEmailCount("aaaaa", { key: adminKey }), { ok: true, count: 1 });
+    assert.deepEqual(await emailUseCases.getEmailCount("aaaaa", { key: "wrong" }), { ok: false, error: "invalid-key" });
+    assert.deepEqual(await emailUseCases.getEmailCount("aaaaa", null), { ok: false, error: "invalid-key" });
+    assert.deepEqual(await emailUseCases.getEmailCount("ZZZZZ", { key: adminKey }), { ok: false, error: "session-not-found" });
+    assert.deepEqual(await emailUseCases.exportEmails("aaaaa", { key: "wrong" }), { ok: false, error: "invalid-key" });
+    assert.deepEqual(await emailUseCases.exportEmails("ZZZZZ", { key: adminKey }), { ok: false, error: "session-not-found" });
+    const exported = await emailUseCases.exportEmails("aaaaa", { key: adminKey });
+    assert.deepEqual(exported, { ok: true, fileName: "correos-AAAAA.csv", csv: `equipo,correo,fecha_consentimiento,version_texto\r\nBits,${EMAIL},2026-11-22T10:00:00.000Z,2026-11-v1\r\n` });
+  });
+
+  it("never lets an email out through the public answers or the errors", async () => {
+    const { emailUseCases, sessionUseCases, scoreUseCases, adminKey } = await emailSession();
+    await scoreUseCases.startAttempt({ session: "AAAAA", team: "Bits", game: "nivel-1" });
+    await scoreUseCases.submitScore({ session: "AAAAA", team: "Bits", game: "nivel-1", score: 200, avatar: 1, tags: [] });
+    assert.deepEqual(await emailUseCases.submitEmail(answer), { ok: true });
+    const publicAnswers = [
+      await sessionUseCases.findSession("AAAAA"),
+      await sessionUseCases.runFacilitatorAction("AAAAA", { key: adminKey, action: "emails", enabled: true }),
+      await scoreUseCases.getRanking("AAAAA"),
+      await scoreUseCases.getPlayStatus({ session: "AAAAA", team: "Bits" }),
+      await scoreUseCases.getStats("AAAAA"),
+      await emailUseCases.submitEmail(answer),
+      await emailUseCases.submitEmail({ ...answer, email: `${EMAIL} nope` }),
+      await emailUseCases.submitEmail({ ...answer, consent: false }),
+      await emailUseCases.submitEmail({ ...answer, team: "a::b" }),
+      await emailUseCases.submitEmail({ ...answer, session: "ZZZZZ" }),
+      await emailUseCases.getEmailCount("AAAAA", { key: adminKey }),
+      await emailUseCases.getEmailCount("AAAAA", { key: "wrong" }),
+      await emailUseCases.exportEmails("AAAAA", { key: "wrong" }),
+    ];
+    assert.ok(!JSON.stringify(publicAnswers).includes(EMAIL));
+    assert.ok(!JSON.stringify(publicAnswers).includes("y.es"));
+    assert.ok(JSON.stringify(await emailUseCases.exportEmails("AAAAA", { key: adminKey })).includes(EMAIL));
   });
 });

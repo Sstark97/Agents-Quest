@@ -1,8 +1,9 @@
 import type { KeyValueStore, Reply, SessionGateway } from "../../src/application/client/ports";
-import type { AttemptKind, RandomSource, ScoreRepository, SessionRepository } from "../../src/application/server/ports";
+import type { AttemptKind, EmailRepository, RandomSource, ScoreRepository, SessionRepository } from "../../src/application/server/ports";
 import type { ArrivalEntry } from "../../src/domain/session/bonus";
 import type { PlayCounter } from "../../src/domain/session/stats";
 import type { ScoreEntry } from "../../src/domain/session/ranking";
+import type { ConsentRecord } from "../../src/domain/session/email";
 import type { SessionRecord } from "../../src/domain/session/session";
 
 /** Key-value store that lives in memory, standing in for the browser's localStorage. */
@@ -21,7 +22,7 @@ export const reply = <T>(status: number, body: T | null = null): Reply<T> => ({ 
 /** Gateway whose calls fail as if there were no connection, unless overridden. */
 export function fakeGateway(overrides: Partial<SessionGateway> = {}): SessionGateway {
   const offline = () => Promise.reject(new Error("offline"));
-  return { findSession: offline, createSession: offline, runFacilitatorAction: offline, startAttempt: offline, getPlayStatus: offline, submitScore: offline, getRanking: offline, getStats: offline, ...overrides };
+  return { findSession: offline, createSession: offline, runFacilitatorAction: offline, startAttempt: offline, getPlayStatus: offline, submitScore: offline, getRanking: offline, getStats: offline, submitEmail: offline, getEmailCount: offline, exportEmails: offline, ...overrides };
 }
 
 export function fakeSessionRepository(): SessionRepository & { records: Record<string, SessionRecord> } {
@@ -33,7 +34,22 @@ export function fakeSessionRepository(): SessionRepository & { records: Record<s
     async setClosed(code, closed) { records[code].closed = closed; },
     async setUnlocked(code, levels) { records[code].unlocked = levels; },
     async setAttemptLimit(code, limit) { records[code].attemptLimit = limit; },
+    async setCollectEmails(code, enabled) { records[code].collectEmails = enabled; },
     async delete(code) { delete records[code]; },
+  };
+}
+
+/** Emails kept in memory, one per team and session. Records the sessions it was cleared for. */
+export function fakeEmailRepository(): EmailRepository & { saved: Record<string, ConsentRecord[]>; cleared: string[] } {
+  const saved: Record<string, ConsentRecord[]> = {};
+  const cleared: string[] = [];
+  return {
+    saved,
+    cleared,
+    async save(code, record) { saved[code] = [...(saved[code] ?? []).filter((other) => other.team !== record.team), { ...record }]; },
+    async count(code) { return saved[code]?.length ?? 0; },
+    async list(code) { return (saved[code] ?? []).map((record) => ({ ...record })); },
+    async clear(code) { cleared.push(code); delete saved[code]; },
   };
 }
 

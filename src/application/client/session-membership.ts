@@ -3,7 +3,7 @@ import type { KeyValueStore, SessionGateway } from "./ports";
 import { STORAGE_KEYS, parseStored, scopedKey } from "./storage-keys";
 
 export type JoinedSession = { code: string; name: string };
-export type JoinResult = { ok: true; session: JoinedSession } | { ok: false; reason: "missing-fields" | "not-found" | "closed" | "offline" };
+export type JoinResult = { ok: true; session: JoinedSession; collectEmails: boolean } | { ok: false; reason: "missing-fields" | "not-found" | "closed" | "offline" };
 
 /** Joining needs both the facilitator's code and a team name. */
 export const hasJoinDetails = (code: string, team: string) => Boolean(code.trim() && team.trim());
@@ -26,7 +26,7 @@ export function createSessionMembership(store: KeyValueStore, gateway: SessionGa
         const session = { code: reply.body.code, name: reply.body.name };
         profile.renameTeam(team);
         store.write(STORAGE_KEYS.session, JSON.stringify(session));
-        return { ok: true, session };
+        return { ok: true, session, collectEmails: reply.body.collectEmails === true };
       } catch {
         return { ok: false, reason: "offline" };
       }
@@ -34,7 +34,9 @@ export function createSessionMembership(store: KeyValueStore, gateway: SessionGa
 
     /** Leaving a session also erases the local scores of that session. */
     leave() {
-      store.remove(scopedKey(STORAGE_KEYS.scores, current()?.code));
+      const code = current()?.code;
+      store.remove(scopedKey(STORAGE_KEYS.scores, code));
+      store.remove(scopedKey(STORAGE_KEYS.emailAsked, code));
       store.remove(STORAGE_KEYS.session);
     },
   };

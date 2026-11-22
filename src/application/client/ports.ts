@@ -27,17 +27,22 @@ export type AttemptPayload = { session: string; team: string; game: string };
 export type AttemptReply = { attempt: number | null; limit: number | null };
 /** `status` is null when the session has no attempt limit. */
 export type PlayStatusReply = { status: PlayStatus | null };
-/** Optional parameters of a facilitator action: the level to unlock, or the new attempt limit. */
-export type FacilitatorActionInput = { level?: number; attempts?: number };
+/** Optional parameters of a facilitator action: the level to unlock, the new attempt limit, or whether the email step is on. */
+export type FacilitatorActionInput = { level?: number; attempts?: number; enabled?: boolean };
+/** A team leaving its email. It travels in the body of a POST, never in a URL. */
+export type EmailPayload = { session: string; team: string; email: string; consent: boolean };
 
 /** The session server as seen from the player's device. Every call rejects when there is no connection. */
 export interface SessionGateway {
   findSession(code: string): Promise<Reply<SessionInfo>>;
-  createSession(name: string, attempts?: number): Promise<Reply<CreatedSession>>;
+  createSession(name: string, attempts?: number, collectEmails?: boolean): Promise<Reply<CreatedSession>>;
   runFacilitatorAction(code: string, key: string, action: FacilitatorAction, input?: FacilitatorActionInput): Promise<Reply<unknown>>;
   startAttempt(payload: AttemptPayload): Promise<Reply<AttemptReply>>;
   getPlayStatus(code: string, team: string): Promise<Reply<PlayStatusReply>>;
   submitScore(payload: ScorePayload): Promise<Reply<unknown>>;
   getRanking(code: string): Promise<Reply<RankingReply>>;
   getStats(code: string): Promise<Reply<Stats>>;
+  submitEmail(payload: EmailPayload): Promise<Reply<unknown>>;
+  getEmailCount(code: string, key: string): Promise<Reply<{ count: number }>>;
+  exportEmails(code: string, key: string): Promise<Reply<{ fileName: string; csv: string }>>;
 }

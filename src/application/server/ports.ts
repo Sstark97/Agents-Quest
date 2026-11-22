@@ -1,4 +1,5 @@
 import type { ArrivalEntry } from "../../domain/session/bonus";
+import type { ConsentRecord } from "../../domain/session/email";
 import type { ScoreEntry } from "../../domain/session/ranking";
 import type { ScoreSubmission } from "../../domain/session/score-submission";
 import type { SessionRecord } from "../../domain/session/session";
@@ -14,7 +15,19 @@ export interface SessionRepository {
   setUnlocked(code: string, levels: number): Promise<void>;
   /** Changes the attempts per team and level. Attempts already spent are not touched. */
   setAttemptLimit(code: string, limit: number): Promise<void>;
+  /** Turns on or off the email step of the session. */
+  setCollectEmails(code: string, enabled: boolean): Promise<void>;
   delete(code: string): Promise<void>;
+}
+
+/** Where the emails of a session live. Apart from the scores: they have their own lifecycle and nothing public may read them. */
+export interface EmailRepository {
+  /** Stores the record, replacing the earlier one of the same team. It expires no later than the session. */
+  save(code: string, record: ConsentRecord): Promise<void>;
+  count(code: string): Promise<number>;
+  list(code: string): Promise<ConsentRecord[]>;
+  /** Removes every email of the session. */
+  clear(code: string): Promise<void>;
 }
 
 /** An attempt is "started" when the team opens the level and "scored" when its result reaches the ranking. */
