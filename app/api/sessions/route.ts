@@ -5,7 +5,7 @@ import { failure, readJson } from "../responses";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const body = await readJson<{ name?: unknown; attempts?: unknown }>(request);
-  const result = await sessionUseCases.createSession(body?.name, body?.attempts);
+  const body = await readJson<{ name?: unknown; attempts?: unknown; collectEmails?: unknown }>(request);
+  const result = await sessionUseCases.createSession(body?.name, body?.attempts, body?.collectEmails);
   return result.ok ? NextResponse.json({ code: result.code, adminKey: result.adminKey, name: result.name }) : failure(result.error);
 }

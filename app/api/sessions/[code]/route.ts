@@ -10,7 +10,7 @@ export async function GET(_request: Request, { params }: Context) {
   return result.ok ? NextResponse.json(result.session) : failure(result.error);
 }
 
-/** Facilitator actions: { key, action: "close" | "open" | "reset" | "delete" | "unlock" | "attempts", level, attempts } (unlock opens levels 1..level; attempts sets the attempts per team and level, 1 to 5). */
+/** Facilitator actions: { key, action: "close" | "open" | "reset" | "delete" | "unlock" | "attempts" | "emails", level, attempts, enabled } (unlock opens levels 1..level; attempts sets the attempts per team and level, 1 to 5; emails turns the email step on or off with enabled, a boolean). */
 export async function POST(request: Request, { params }: Context) {
   const result = await sessionUseCases.runFacilitatorAction((await params).code, await readJson(request));
   return result.ok ? NextResponse.json({ ok: true }) : failure(result.error);

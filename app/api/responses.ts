@@ -12,6 +12,9 @@ const FAILURES = {
   // 409, not 403: the client already reads 403 as "session closed".
   "attempts-exhausted": { status: 409, message: "Has agotado tus intentos en este nivel" },
   "no-attempt": { status: 409, message: "Esta partida no tiene un intento reservado" },
+  "emails-disabled": { status: 409, message: "Esta sesión no recoge correos" },
+  "invalid-email": { status: 400, message: "Escribe un correo válido" },
+  "missing-consent": { status: 400, message: "Marca la casilla para poder guardar tu correo" },
   "missing-name": { status: 400, message: "Falta el nombre de la sesión" },
 } as const;
 
