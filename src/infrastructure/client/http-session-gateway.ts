@@ -14,11 +14,14 @@ const query = (code: string) => `session=${encodeURIComponent(code)}`;
 /** Talks to the session API of this same application over HTTP. */
 export const httpSessionGateway: SessionGateway = {
   findSession: (code) => get(sessionPath(code)),
-  createSession: (name, attempts) => post("/api/sessions", { name, attempts }),
-  runFacilitatorAction: (code, key, action, input) => post(sessionPath(code), { key, action, level: input?.level, attempts: input?.attempts }),
+  createSession: (name, attempts, collectEmails) => post("/api/sessions", { name, attempts, collectEmails }),
+  runFacilitatorAction: (code, key, action, input) => post(sessionPath(code), { key, action, level: input?.level, attempts: input?.attempts, enabled: input?.enabled }),
   startAttempt: (payload) => post("/api/attempts", payload),
   getPlayStatus: (code, team) => get(`/api/attempts?${query(code)}&team=${encodeURIComponent(team)}`),
   submitScore: (payload) => post("/api/scores", payload),
   getRanking: (code) => get(`/api/scores?${query(code)}`),
   getStats: (code) => get(`/api/stats?${query(code)}`),
+  submitEmail: (payload) => post("/api/emails", payload),
+  getEmailCount: (code, key) => post(`${sessionPath(code)}/emails`, { key }),
+  exportEmails: (code, key) => post(`${sessionPath(code)}/emails/export`, { key }),
 };

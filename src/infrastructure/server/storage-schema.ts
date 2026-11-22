@@ -1,4 +1,5 @@
 import type { AttemptKind } from "../../application/server/ports";
+import type { ConsentRecord } from "../../domain/session/email";
 import type { ArrivalEntry, ArrivalMark } from "../../domain/session/bonus";
 import type { ScoreEntry } from "../../domain/session/ranking";
 import { TEAM_GAME_SEPARATOR, type ScoreSubmission } from "../../domain/session/score-submission";
@@ -32,4 +33,16 @@ export const counterFields = ({ game, tags }: ScoreSubmission) => [`${game}${COU
 export function parseCounterField(field: string, count: number): PlayCounter {
   const at = field.indexOf(COUNTER_SEPARATOR);
   return { game: field.slice(0, at), tag: field.slice(at + 1), count };
+}
+
+/** A stored consent record, or null when the stored text is not one (it is then skipped). */
+export function parseStoredConsent(json: string): ConsentRecord | null {
+  try {
+    const value: unknown = JSON.parse(json);
+    if (typeof value !== "object" || value === null) return null;
+    const { team, email, consentedAt, version } = value as Record<string, unknown>;
+    return typeof team === "string" && typeof email === "string" && typeof consentedAt === "string" && typeof version === "string" ? { team, email, consentedAt, version } : null;
+  } catch {
+    return null;
+  }
 }

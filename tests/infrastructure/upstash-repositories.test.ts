@@ -1,14 +1,16 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { SESSION_TTL_SECONDS } from "../../src/domain/session/session";
 import { createScoreUseCases } from "../../src/application/server/score-use-cases";
 import { fakeSessionRepository } from "../support/fakes";
-import { createUpstashScoreRepository, createUpstashSessionRepository } from "../../src/infrastructure/server/upstash-repositories";
+import { createUpstashEmailRepository, createUpstashScoreRepository, createUpstashSessionRepository } from "../../src/infrastructure/server/upstash-repositories";
 import type { RedisCommand } from "../../src/infrastructure/server/upstash-redis";
 
 /** The few Redis commands the repositories use, over plain maps. Records the commands it receives. */
 function fakeRedis(initial: Record<string, Record<string, string>> = {}) {
   const hashes = new Map(Object.entries(initial).map(([key, hash]) => [key, new Map(Object.entries(hash))]));
   const strings = new Map<string, number>();
+  const ttls = new Map<string, number>();
   const commands: (string | number)[][] = [];
   const hash = (key: string | number) => hashes.get(String(key)) ?? hashes.set(String(key), new Map()).get(String(key))!;
   const redis: RedisCommand = async (command) => {
@@ -23,11 +25,13 @@ function fakeRedis(initial: Record<string, Record<string, string>> = {}) {
       case "HINCRBY": { const value = Number(hash(key).get(String(args[0])) ?? 0) + Number(args[1]); hash(key).set(String(args[0]), String(value)); return value; }
       case "INCR": { const value = (strings.get(String(key)) ?? 0) + 1; strings.set(String(key), value); return value; }
       case "DEL": hashes.delete(String(key)); strings.delete(String(key)); return 1;
-      case "EXPIRE": return 1;
+      case "HLEN": return hash(key).size;
+      case "TTL": return ttls.get(String(key)) ?? -1;
+      case "EXPIRE": ttls.set(String(key), Number(args[0])); return 1;
       default: throw new Error(`unexpected command ${name}`);
     }
   };
-  return { redis, commands, hashes };
+  return { redis, commands, hashes, ttls };
 }
 
 const NO_ATTEMPT_LIMIT_FIELDS = { name: "Miércoles", closed: "0", adminKey: "k", unlocked: "2" };
@@ -36,13 +40,13 @@ describe("upstash session repository", () => {
   it("reads a session hash written before the attempt limit existed as having no limit", async () => {
     const { redis } = fakeRedis({ "aq:session:OLD01": NO_ATTEMPT_LIMIT_FIELDS });
     const found = await createUpstashSessionRepository(redis).find("OLD01");
-    assert.deepEqual(found, { name: "Miércoles", closed: false, adminKey: "k", unlocked: 2, attemptLimit: null });
+    assert.deepEqual(found, { name: "Miércoles", closed: false, adminKey: "k", unlocked: 2, attemptLimit: null, collectEmails: false });
   });
 
   it("stores the attempt limit of a new session, and reads it back after it changes", async () => {
     const { redis } = fakeRedis();
     const sessions = createUpstashSessionRepository(redis);
-    assert.equal(await sessions.create("NEW01", { name: "Taller", closed: false, adminKey: "k", unlocked: 0, attemptLimit: 2 }), true);
+    assert.equal(await sessions.create("NEW01", { name: "Taller", closed: false, adminKey: "k", unlocked: 0, attemptLimit: 2, collectEmails: false }), true);
     assert.equal((await sessions.find("NEW01"))?.attemptLimit, 2);
     await sessions.setAttemptLimit("NEW01", 4);
     assert.equal((await sessions.find("NEW01"))?.attemptLimit, 4);
@@ -50,13 +54,74 @@ describe("upstash session repository", () => {
 
   it("writes no attempts field when the session has no limit", async () => {
     const { redis, hashes } = fakeRedis();
-    await createUpstashSessionRepository(redis).create("LEG01", { name: "Taller", closed: false, adminKey: "k", unlocked: 0, attemptLimit: null });
+    await createUpstashSessionRepository(redis).create("LEG01", { name: "Taller", closed: false, adminKey: "k", unlocked: 0, attemptLimit: null, collectEmails: false });
     assert.equal(hashes.get("aq:session:LEG01")?.has("attempts"), false);
   });
 
   it("ignores a stored limit that is not valid", async () => {
     const { redis } = fakeRedis({ "aq:session:BAD01": { ...NO_ATTEMPT_LIMIT_FIELDS, attempts: "abc" } });
     assert.equal((await createUpstashSessionRepository(redis).find("BAD01"))?.attemptLimit, null);
+  });
+});
+
+describe("upstash session repository and emails", () => {
+  it("reads a session hash without the emails field as not collecting", async () => {
+    const { redis } = fakeRedis({ "aq:session:OLD01": NO_ATTEMPT_LIMIT_FIELDS });
+    assert.equal((await createUpstashSessionRepository(redis).find("OLD01"))?.collectEmails, false);
+  });
+
+  it("writes the emails field on create and changes it with setCollectEmails", async () => {
+    const { redis, hashes } = fakeRedis();
+    const sessions = createUpstashSessionRepository(redis);
+    await sessions.create("NEW01", { name: "Taller", closed: false, adminKey: "k", unlocked: 0, attemptLimit: 2, collectEmails: true });
+    assert.equal(hashes.get("aq:session:NEW01")?.get("emails"), "1");
+    assert.equal((await sessions.find("NEW01"))?.collectEmails, true);
+    await sessions.setCollectEmails("NEW01", false);
+    assert.equal(hashes.get("aq:session:NEW01")?.get("emails"), "0");
+    assert.equal((await sessions.find("NEW01"))?.collectEmails, false);
+  });
+});
+
+describe("upstash email repository", () => {
+  const record = { team: "Los|Bits", email: "a@x.es", consentedAt: "2026-11-22T10:00:00.000Z", version: "v1" };
+
+  it("keeps one record per team and counts them", async () => {
+    const { redis } = fakeRedis();
+    const emails = createUpstashEmailRepository(redis);
+    await emails.save("AAAAA", record);
+    await emails.save("AAAAA", { ...record, email: "b@x.es" });
+    await emails.save("AAAAA", { ...record, team: "Bytes" });
+    assert.equal(await emails.count("AAAAA"), 2);
+    assert.deepEqual((await emails.list("AAAAA")).map((entry) => entry.email).sort(), ["b@x.es", "a@x.es"].sort());
+    assert.equal(await emails.count("OTHER"), 0);
+  });
+
+  it("expires with the remaining life of the session, or a full life when it cannot be read", async () => {
+    const { redis, ttls } = fakeRedis();
+    const emails = createUpstashEmailRepository(redis);
+    ttls.set("aq:session:AAAAA", 1234);
+    await emails.save("AAAAA", record);
+    assert.equal(ttls.get("aq:emails:AAAAA"), 1234);
+    await emails.save("BBBBB", record);
+    assert.equal(ttls.get("aq:emails:BBBBB"), SESSION_TTL_SECONDS);
+  });
+
+  it("drops the emails when the session was deleted while saving", async () => {
+    const { redis, hashes } = fakeRedis();
+    const sessionGone: typeof redis = async (command) => (command[0] === "TTL" ? -2 : redis(command));
+    const emails = createUpstashEmailRepository(sessionGone);
+    await emails.save("AAAAA", record);
+    assert.equal(hashes.has("aq:emails:AAAAA"), false);
+  });
+
+  it("skips corrupt stored records and clears the key", async () => {
+    const { redis, hashes } = fakeRedis({ "aq:emails:AAAAA": { Bad: "{not json", Wrong: "{\"team\":1}", Null: "null" } });
+    const emails = createUpstashEmailRepository(redis);
+    await emails.save("AAAAA", record);
+    assert.deepEqual(await emails.list("AAAAA"), [record]);
+    await emails.clear("AAAAA");
+    assert.equal(hashes.has("aq:emails:AAAAA"), false);
+    assert.deepEqual(await emails.list("AAAAA"), []);
   });
 });
 
@@ -121,7 +186,7 @@ describe("score use cases over Upstash", () => {
       return redis(command);
     };
     const sessions = fakeSessionRepository();
-    await sessions.create("AAAAA", { name: "Taller", closed: false, adminKey: "k", unlocked: 0, attemptLimit: 2 });
+    await sessions.create("AAAAA", { name: "Taller", closed: false, adminKey: "k", unlocked: 0, attemptLimit: 2, collectEmails: false });
     const scores = createUpstashScoreRepository(flaky);
     const useCases = createScoreUseCases({ sessions, scores });
     const play = { session: "AAAAA", team: "Bits", game: "nivel-1", score: 300, avatar: 1, tags: [] };

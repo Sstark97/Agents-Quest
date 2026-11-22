@@ -1,4 +1,5 @@
-import type { ScoreRepository, SessionRepository } from "../../application/server/ports";
+import type { EmailRepository, ScoreRepository, SessionRepository } from "../../application/server/ports";
+import type { ConsentRecord } from "../../domain/session/email";
 import type { SessionRecord } from "../../domain/session/session";
 import { arrivalField, attemptField, counterFields, parseArrivalField, parseCounterField, parseScoreField, scoreField } from "./storage-schema";
 
@@ -14,6 +15,7 @@ type MemoryStore = {
   __attempts?: Record<string, Record<string, number>>;
   __seq?: Record<string, number>;
   __arrivals?: Record<string, Record<string, number>>;
+  __emails?: Record<string, Record<string, ConsentRecord>>;
 };
 const store = globalThis as unknown as Required<MemoryStore>;
 store.__sessions ??= {};
@@ -23,6 +25,7 @@ store.__stats ??= {};
 store.__attempts ??= {};
 store.__seq ??= {};
 store.__arrivals ??= {};
+store.__emails ??= {};
 
 export function createMemorySessionRepository(): SessionRepository {
   return {
@@ -33,11 +36,12 @@ export function createMemorySessionRepository(): SessionRepository {
     },
     async find(code) {
       const session = store.__sessions[code];
-      return session ? { ...session, unlocked: session.unlocked ?? 0, attemptLimit: session.attemptLimit ?? null } : null;
+      return session ? { ...session, unlocked: session.unlocked ?? 0, attemptLimit: session.attemptLimit ?? null, collectEmails: session.collectEmails ?? false } : null;
     },
     async setClosed(code, closed) { if (store.__sessions[code]) store.__sessions[code].closed = closed; },
     async setUnlocked(code, levels) { if (store.__sessions[code]) store.__sessions[code].unlocked = levels; },
     async setAttemptLimit(code, limit) { if (store.__sessions[code]) store.__sessions[code].attemptLimit = limit; },
+    async setCollectEmails(code, enabled) { if (store.__sessions[code]) store.__sessions[code].collectEmails = enabled; },
     async delete(code) { delete store.__sessions[code]; },
   };
 }
@@ -71,5 +75,14 @@ export function createMemoryScoreRepository(): ScoreRepository {
     async avatars(code) { return store.__avatars[code] ?? {}; },
     async counters(code) { return Object.entries(store.__stats[code] ?? {}).map(([field, count]) => parseCounterField(field, count)); },
     async clear(code) { delete store.__scores[code]; delete store.__avatars[code]; delete store.__stats[code]; delete store.__attempts[code]; delete store.__seq[code]; delete store.__arrivals[code]; },
+  };
+}
+
+export function createMemoryEmailRepository(): EmailRepository {
+  return {
+    async save(code, record) { (store.__emails[code] ??= {})[record.team] = { ...record }; },
+    async count(code) { return Object.keys(store.__emails[code] ?? {}).length; },
+    async list(code) { return Object.values(store.__emails[code] ?? {}).map((record) => ({ ...record })); },
+    async clear(code) { delete store.__emails[code]; },
   };
 }
