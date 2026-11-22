@@ -1,8 +1,8 @@
 /** A workshop session: one facilitator, many teams, one ranking. */
-export type SessionRecord = { name: string; closed: boolean; adminKey: string; unlocked: number; attemptLimit: number | null };
+export type SessionRecord = { name: string; closed: boolean; adminKey: string; unlocked: number; attemptLimit: number | null; collectEmails: boolean };
 
 /** What anyone may know about a session (never the facilitator key). */
-export type SessionInfo = { code: string; name: string; closed: boolean; unlocked: number; attemptLimit: number | null };
+export type SessionInfo = { code: string; name: string; closed: boolean; unlocked: number; attemptLimit: number | null; collectEmails: boolean };
 
 export const SESSION_NAME_MAX = 40;
 /** Attempts per team and level a new session gets when the facilitator does not choose. */
@@ -31,7 +31,10 @@ export const parseAttemptLimit = (raw: unknown): number | null =>
 /** Whether `used` attempts fit in the limit. A null limit (sessions created before the limit existed) is unlimited. */
 export const isWithinLimit = (used: number, limit: number | null) => limit === null || used <= limit;
 
-export const toSessionInfo = (code: string, session: SessionRecord): SessionInfo => ({ code, name: session.name, closed: session.closed, unlocked: session.unlocked, attemptLimit: session.attemptLimit });
+export const toSessionInfo = (code: string, session: SessionRecord): SessionInfo => ({ code, name: session.name, closed: session.closed, unlocked: session.unlocked, attemptLimit: session.attemptLimit, collectEmails: session.collectEmails });
 
 /** What a facilitator can do with a session they created. */
-export type FacilitatorAction = "close" | "open" | "reset" | "delete" | "unlock" | "attempts";
+export type FacilitatorAction = "close" | "open" | "reset" | "delete" | "unlock" | "attempts" | "emails";
+
+/** Whether the key is the facilitator key of the session. */
+export const hasFacilitatorKey = (session: SessionRecord, key: unknown) => typeof key === "string" && key === session.adminKey;
