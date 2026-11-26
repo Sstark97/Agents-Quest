@@ -23,13 +23,13 @@ LeanMind quiere recoger correos de quienes participan en los talleres para envia
 
 - **Un correo por equipo** (un dispositivo por equipo). Si el equipo lo envía otra vez, se guarda el último.
 - **Opcional siempre**: se puede jugar sin dejar el correo. Si se escribe un correo, la casilla de consentimiento es obligatoria para enviarlo.
-- **Finalidad**: la de la política actual de LeanMind (newsletters y comunicaciones comerciales sobre promociones y publicidad de la empresa y del sector). Legitimación: consentimiento.
+- **Finalidad**: informar de las próximas formaciones, talleres y eventos de LeanMind (dentro de las comunicaciones que recoge su política). Legitimación: consentimiento. Versión del texto `2026-11-v2`; los correos guardados con `2026-11-v1` aceptaron el texto anterior («newsletters y comunicaciones comerciales»).
 - **Prueba del consentimiento**: con cada correo se guarda la fecha y hora del servidor y la versión del texto aceptado (constante con nombre en el dominio).
 - **Conservación en el juego**: los correos viven con la sesión y caducan con ella (30 días). Borrar la sesión los borra; «reiniciar puntuaciones» **no** los borra. El formador debe descargarlos antes.
 - **Privacidad técnica**: el correo no se guarda en el dispositivo (`localStorage`), nunca aparece en ranking, proyector, estado de partida ni ninguna respuesta pública, y no se escribe en logs. Solo se exporta con la clave de formador.
 - **Popup** («¿Para qué lo pedimos?»), primera capa de información:
   - Responsable: Lean Mind, S.L.
-  - Finalidad: enviarte newsletters y comunicaciones comerciales sobre promociones y novedades de LeanMind y del sector.
+  - Finalidad: informarte de las próximas formaciones, talleres y eventos de LeanMind.
   - Legitimación: tu consentimiento, al marcar la casilla. Es opcional: puedes jugar igual sin dejar tu correo.
   - Conservación: el juego lo borra con la sesión (30 días); LeanMind lo conserva mientras no pidas la baja.
   - Derechos: acceso, rectificación, supresión, oposición y retirada del consentimiento en cualquier momento, como indica la política.
@@ -63,7 +63,7 @@ Como equipo, quiero dejar mi correo si quiero, sabiendo para qué se usa.
 Criterios de aceptación:
 
 1. Dada una sesión sin correo, cuando pulso UNIRME, entonces me uno como hoy, sin paso extra.
-2. Dada una sesión con correo, cuando pulso UNIRME, entonces veo «Correo (opcional)», la casilla «Acepto que Lean Mind, S.L. use mi correo para enviarme newsletters y comunicaciones comerciales. Puedo darme de baja cuando quiera.» sin marcar, el enlace «¿Para qué lo pedimos?» y los botones «UNIRME CON CORREO» y «UNIRME SIN CORREO».
+2. Dada una sesión con correo, cuando pulso UNIRME, entonces veo «Correo (opcional)», la casilla «Acepto que Lean Mind, S.L. use mi correo para informarme de sus próximas formaciones y eventos. Puedo darme de baja cuando quiera.» sin marcar, el enlace «¿Para qué lo pedimos?» y los botones «UNIRME CON CORREO» y «UNIRME SIN CORREO».
 3. Dado un correo mal escrito, entonces veo «Escribe un correo válido» y no se envía; dado un correo válido sin la casilla marcada, entonces veo «Marca la casilla para poder guardar tu correo».
 4. Dado «¿Para qué lo pedimos?», entonces se abre un popup con la información de la sección Decisiones y el enlace a la política; se cierra con un botón y con Escape.
 5. Dado un correo válido con consentimiento, entonces queda guardado para la sesión con fecha y versión del texto, y el equipo entra en la sesión; si no hay conexión, se une igualmente y se le avisa de que el correo no se ha guardado.
