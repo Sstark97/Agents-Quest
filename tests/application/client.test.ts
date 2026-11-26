@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import { createClientServices } from "../../src/application/client/services";
 import type { SessionGateway } from "../../src/application/client/ports";
 import type { SessionInfo } from "../../src/domain/session/session";
+import { AVATAR_COUNT } from "../../src/domain/session/score-submission";
 import { fakeGateway, fakeStore, reply } from "../support/fakes";
 
 const openSession = { code: "K7M2Q", name: "Taller", closed: false, unlocked: 2, attemptLimit: null, collectEmails: false };
@@ -19,7 +20,7 @@ describe("player profile", () => {
     assert.equal(services.profile.teamName().length, 30);
     assert.equal(services.profile.avatar(), 0);
     store.data["taller.avatar"] = "99";
-    assert.equal(services.profile.avatar(), 7);
+    assert.equal(services.profile.avatar(), AVATAR_COUNT - 1);
   });
 });
 

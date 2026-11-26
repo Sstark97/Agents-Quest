@@ -1,7 +1,7 @@
 import { findGame } from "../games/catalog";
 
 export const TEAM_NAME_MAX = 30;
-export const AVATAR_COUNT = 8;
+export const AVATAR_COUNT = 9;
 const TAG_MAX_LENGTH = 80;
 const TAGS_MAX = 12;
 /** Separator used by the storage to join team and game: a team name must not contain it. */
