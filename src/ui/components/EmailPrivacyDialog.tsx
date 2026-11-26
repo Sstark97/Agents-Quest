@@ -35,7 +35,7 @@ export function EmailPrivacyDialog({ onClose }: { onClose: () => void }) {
         <h2 id={TITLE_ID}>¿Para qué te pedimos el correo?</h2>
         <ul>
           <li><strong>Responsable:</strong> Lean Mind, S.L.</li>
-          <li><strong>Finalidad:</strong> enviarte newsletters y comunicaciones comerciales sobre promociones y novedades de LeanMind y del sector.</li>
+          <li><strong>Finalidad:</strong> informarte de las próximas formaciones, talleres y eventos de LeanMind.</li>
           <li><strong>Legitimación:</strong> tu consentimiento, al marcar la casilla. Es opcional: puedes jugar igual sin dejar tu correo.</li>
           <li><strong>Conservación:</strong> el juego lo borra con la sesión (30 días); LeanMind lo conserva mientras no pidas la baja.</li>
           <li><strong>Derechos:</strong> acceso, rectificación, supresión, oposición y retirada del consentimiento en cualquier momento, como indica la política de privacidad.</li>
