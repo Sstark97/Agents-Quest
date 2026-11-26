@@ -138,6 +138,8 @@ const TOPS: Art[] = [
   ["........c..c....", ".........GG....."], // V antenna
   [".......mMMMM....", ".......rrrrr....", ".....MMMMMMMMM.."], // top hat
   ["..........c.....", ".........G......"], // short antenna
+  // Santa hat: red cone with its tip and white pompom falling to the right, and a white brim over the dome
+  [".......kkkk.kkk.", "......krrrRkkeek", ".....krrrrrRkkek", "....kwwwwwwwwwk."],
 ];
 /** Tuxedo over the core: lapels, shirt and bow tie. */
 const TUX: Art = ["kMwrrwMk", "kMmwwMMk"];
@@ -150,6 +152,8 @@ export const AVATARS: { name: string; g: string; G: string; eyes: number; top: n
   { name: "Shell", g: "#ffa66b", G: "#b5541a", eyes: 5, top: 5, c: "#3ddc84" },
   { name: "Gala", g: "#ffffff", G: "#b4bbd4", eyes: 6, top: 6, c: "#ffd84a", tux: true },
   { name: "Glitch", g: "#f4f1de", G: "#8f8a74", eyes: 7, top: 7, c: "#ff4f9a" },
+  // Christmas Sirviendo Código: Bolt's colours and eyes with a Santa hat
+  { name: "Noel", g: "#6fc0ab", G: "#3e9fc6", eyes: 0, top: 8, c: "#e9fff8" },
 ];
 export type RobotFrame = "idle" | "blink" | "a" | "b" | "breath";
 export function robotArt(n: number, f: RobotFrame = "idle"): Art {
