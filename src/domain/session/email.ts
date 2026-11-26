@@ -10,8 +10,8 @@ export const EMAIL_LOCAL_MAX = 64;
 export const EMAIL_PATTERN = /^[\p{L}\p{N}][^\s\p{Cc}@<>()[\]\\,;:"]*@(?:[^\s\p{Cc}@<>()[\]\\,;:".]+\.)+[^\s\p{Cc}@<>()[\]\\,;:".]{2,}$/u;
 
 /** Bump the version whenever the checkbox text or the information popup changes: it proves what each person accepted. */
-export const EMAIL_CONSENT_VERSION = "2026-11-v1";
-export const EMAIL_CONSENT_TEXT = "Acepto que Lean Mind, S.L. use mi correo para enviarme newsletters y comunicaciones comerciales. Puedo darme de baja cuando quiera.";
+export const EMAIL_CONSENT_VERSION = "2026-11-v2";
+export const EMAIL_CONSENT_TEXT = "Acepto que Lean Mind, S.L. use mi correo para informarme de sus próximas formaciones y eventos. Puedo darme de baja cuando quiera.";
 export const PRIVACY_POLICY_URL = "https://leanmind.es/es/politica-privacidad";
 
 export const CONSENT_CSV_HEADER = ["equipo", "correo", "fecha_consentimiento", "version_texto"];

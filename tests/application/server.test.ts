@@ -420,7 +420,7 @@ describe("email use cases", () => {
       { team: "Bits", email: "Otro@y.es", consentedAt: "2026-11-22T11:30:00.000Z" },
       { team: "Bytes", email: EMAIL, consentedAt: "2026-11-22T11:30:00.000Z" },
     ]);
-    assert.equal(emails.saved.AAAAA[0].version, "2026-11-v1");
+    assert.equal(emails.saved.AAAAA[0].version, "2026-11-v2");
   });
 
   it("keeps the emails when the scores are reset and drops them with the session", async () => {
@@ -446,7 +446,7 @@ describe("email use cases", () => {
     assert.deepEqual(await emailUseCases.exportEmails("aaaaa", { key: "wrong" }), { ok: false, error: "invalid-key" });
     assert.deepEqual(await emailUseCases.exportEmails("ZZZZZ", { key: adminKey }), { ok: false, error: "session-not-found" });
     const exported = await emailUseCases.exportEmails("aaaaa", { key: adminKey });
-    assert.deepEqual(exported, { ok: true, fileName: "correos-AAAAA.csv", csv: `equipo,correo,fecha_consentimiento,version_texto\r\nBits,${EMAIL},2026-11-22T10:00:00.000Z,2026-11-v1\r\n` });
+    assert.deepEqual(exported, { ok: true, fileName: "correos-AAAAA.csv", csv: `equipo,correo,fecha_consentimiento,version_texto\r\nBits,${EMAIL},2026-11-22T10:00:00.000Z,2026-11-v2\r\n` });
   });
 
   it("never lets an email out through the public answers or the errors", async () => {
